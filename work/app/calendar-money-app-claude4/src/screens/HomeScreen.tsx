@@ -39,28 +39,12 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
-  const handleDayPress = (_date: string) => {
+  const handleDayPress = () => {
     // 日付がタップされた時の処理（必要に応じて実装）
   };
 
   return (
     <ScrollView style={styles.container}>
-      {/* ヘッダー部分 */}
-      <View style={styles.header}>
-        <Text style={styles.appTitle}>資産管理</Text>
-        <Text style={styles.dateText}>
-          {new Date().toLocaleDateString("ja-JP", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-            weekday: "long",
-          })}
-        </Text>
-      </View>
-
-      {/* 余白 */}
-      <View style={styles.spacer} />
-
       {/* カレンダー */}
       <View style={styles.calendarContainer}>
         {showTooltip && (
@@ -84,21 +68,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
-  },
-  header: {
-    backgroundColor: "#2196F3",
-    padding: 20,
-    paddingTop: 60,
-  },
-  appTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 4,
-  },
-  dateText: {
-    fontSize: 14,
-    color: "#E3F2FD",
   },
   summaryContainer: {
     backgroundColor: "#fff",

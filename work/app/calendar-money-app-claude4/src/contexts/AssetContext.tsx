@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Asset, Transaction, MonthlyBudget, CalendarDayData } from "../types";
 import {
   calculateAssetProjection,
@@ -45,27 +46,82 @@ export const useAssets = () => {
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [assets, setAssets] = useState<Asset[]>([
-    {
-      id: "1",
-      name: "現金",
-      type: "cash",
-      amount: 1000000, // 100万円
-    },
-    {
-      id: "2",
-      name: "株式",
-      type: "stock",
-      amount: 500000, // 50万円
-      annualReturn: 0.05, // 5%
-    },
-  ]);
-
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<MonthlyBudget[]>([]);
   const [calendarData, setCalendarData] = useState<
     Record<string, CalendarDayData>
   >({});
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // 初期化処理
+  useEffect(() => {
+    initializeFromOnboarding();
+  }, []);
+
+  const initializeFromOnboarding = async () => {
+    try {
+      const onboardingData = await AsyncStorage.getItem("onboardingData");
+      if (onboardingData) {
+        const data = JSON.parse(onboardingData);
+
+        // 資産の初期化
+        const initialAssets: Asset[] = [
+          {
+            id: "1",
+            name: "現金・預金",
+            type: "cash",
+            amount: data.cashAmount,
+          },
+          {
+            id: "2",
+            name: "株式・投資信託",
+            type: "stock",
+            amount: data.stockAmount,
+            annualReturn: data.stockAnnualReturn,
+          },
+        ];
+        setAssets(initialAssets);
+
+        // 予算の初期化
+        const currentDate = new Date();
+        const currentMonth =
+          currentDate.getFullYear() +
+          "-" +
+          String(currentDate.getMonth() + 1).padStart(2, "0");
+
+        const initialBudget: MonthlyBudget = {
+          id: "1",
+          month: currentMonth,
+          income: data.monthlyIncome,
+          expense: data.monthlyExpense,
+          stockInvestment: data.monthlyStockInvestment,
+        };
+        setBudgets([initialBudget]);
+      } else {
+        // デフォルト値
+        setAssets([
+          {
+            id: "1",
+            name: "現金",
+            type: "cash",
+            amount: 1000000,
+          },
+          {
+            id: "2",
+            name: "株式",
+            type: "stock",
+            amount: 500000,
+            annualReturn: 0.05,
+          },
+        ]);
+      }
+    } catch (error) {
+      console.log("Error initializing from onboarding:", error);
+    } finally {
+      setIsInitialized(true);
+    }
+  };
 
   // Asset management functions
   const addAsset = (asset: Omit<Asset, "id">) => {
@@ -154,8 +210,10 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Refresh calendar data when dependencies change
   useEffect(() => {
-    refreshCalendarData();
-  }, [assets, budgets, transactions]);
+    if (isInitialized) {
+      refreshCalendarData();
+    }
+  }, [assets, budgets, transactions, isInitialized]);
 
   const value: AssetContextType = {
     assets,
