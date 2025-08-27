@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { User, OnboardingData } from "../types";
 
 interface User {
   id: string;
@@ -87,16 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const completeOnboarding = async (userData: {
-    name: string;
-    age: number;
-    cashAmount: number;
-    stockAmount: number;
-    stockAnnualReturn: number;
-    monthlyIncome: number;
-    monthlyExpense: number;
-    monthlyStockInvestment: number;
-  }) => {
+  const completeOnboarding = async (userData: OnboardingData) => {
     try {
       if (!user) return;
 
@@ -111,6 +103,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // オンボーディングデータを保存
       await AsyncStorage.setItem("onboardingData", JSON.stringify(userData));
+
+      // 目標値もSettingsContextで使えるように保存
+      if (userData.targetAge) {
+        await AsyncStorage.setItem("targetAge", userData.targetAge.toString());
+      }
+      if (userData.targetAmount) {
+        await AsyncStorage.setItem(
+          "targetAmount",
+          userData.targetAmount.toString()
+        );
+      }
 
       setUser(updatedUser);
     } catch (error) {

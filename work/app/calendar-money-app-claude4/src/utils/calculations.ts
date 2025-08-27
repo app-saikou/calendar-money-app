@@ -1,5 +1,19 @@
 import { Asset, MonthlyBudget, Transaction, CalendarDayData } from "../types";
 
+export interface PeakAssetInfo {
+  peakAmount: number;
+  peakDate: string;
+  yearsFromNow: number;
+  monthsFromNow: number;
+  peakAge?: number;
+  assetAtTargetAge?: number;
+  targetAge?: number;
+  targetAchieveDate?: string;
+  targetAchieveYears?: number;
+  targetAchieveMonths?: number;
+  isTargetAchievable?: boolean;
+}
+
 /**
  * 通貨をフォーマットして表示用に変換
  */
@@ -188,33 +202,61 @@ export const calculateAssetProjection = (
         formatDate(today)
       );
 
-      dayAssets = baseAssets.map((asset) => {
-        const monthlyNetCash = fixedBudget
-          ? fixedBudget.income - fixedBudget.expense
-          : 0;
-        const monthlyStockInvestment = fixedBudget
-          ? fixedBudget.stockInvestment
-          : 0;
+      // 月初・月末の判定
+      const isMonthStart = currentDate.getDate() === 1;
+      const isMonthEnd =
+        currentDate.getDate() ===
+        getLastDayOfMonth(
+          currentDate.getFullYear(),
+          currentDate.getMonth() + 1
+        ).getDate();
 
+      // 月初の株式投資移動を先に計算
+      let cashAmount = baseAssets.find((a) => a.type === "cash")?.amount || 0;
+      let stockAmount = baseAssets.find((a) => a.type === "stock")?.amount || 0;
+
+      const monthlyStockInvestment = fixedBudget
+        ? fixedBudget.stockInvestment
+        : 0;
+      const monthlyNetCash = fixedBudget
+        ? fixedBudget.income - fixedBudget.expense
+        : 0;
+
+      // 月初に株式投資移動
+      if (isMonthStart && monthlyStockInvestment > 0) {
+        cashAmount -= monthlyStockInvestment;
+        stockAmount += monthlyStockInvestment;
+      }
+
+      // 月末に収支を反映
+      if (isMonthEnd) {
+        cashAmount += monthlyNetCash;
+      }
+
+      // 株式の複利計算（毎日）
+      const monthsDiff = getMonthsDifference(today, currentDate);
+      if (stockAmount > 0) {
+        const stockAsset = baseAssets.find((a) => a.type === "stock");
+        if (stockAsset && stockAsset.annualReturn) {
+          // 移動後のstockAmountで複利計算
+          stockAmount = calculateCompoundInterest(
+            stockAmount, // ← 移動後の金額を使用
+            stockAsset.annualReturn,
+            monthsDiff
+          );
+        }
+      }
+
+      dayAssets = baseAssets.map((asset) => {
         if (asset.type === "cash") {
           return {
             ...asset,
-            amount: calculateAssetValueAtMonth(
-              asset,
-              today,
-              currentDate,
-              monthlyNetCash - monthlyStockInvestment
-            ),
+            amount: cashAmount,
           };
         } else if (asset.type === "stock") {
           return {
             ...asset,
-            amount: calculateAssetValueAtMonth(
-              asset,
-              today,
-              currentDate,
-              monthlyStockInvestment
-            ),
+            amount: stockAmount,
           };
         }
         return asset;
@@ -229,6 +271,20 @@ export const calculateAssetProjection = (
       .filter((asset) => asset.type === "stock")
       .reduce((sum, asset) => sum + asset.amount, 0);
 
+    // デバッグ: 月末の計算を確認
+    const isMonthEnd =
+      currentDate.getDate() ===
+      getLastDayOfMonth(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1
+      ).getDate();
+
+    if (isMonthEnd) {
+      console.log(
+        `Debug: ${dateString} - Cash: ${cashAmount}, Stock: ${stockAmount}, Total: ${totalAssets}`
+      );
+    }
+
     result[dateString] = {
       date: dateString,
       totalAssets,
@@ -242,4 +298,117 @@ export const calculateAssetProjection = (
   }
 
   return result;
+};
+
+/**
+ * ピーク資産情報を計算
+ */
+export const calculatePeakAssetInfo = (
+  calendarData: Record<string, CalendarDayData>,
+  userAge?: number,
+  targetAge?: number,
+  targetAmount?: number
+): PeakAssetInfo => {
+  console.log("Debug: calculatePeakAssetInfo called with:", {
+    userAge,
+    targetAge,
+    targetAmount,
+    calendarDataKeys: Object.keys(calendarData).length,
+  });
+  const today = new Date();
+  let peakAmount = 0;
+  let peakDate = "";
+
+  // 全ての日付から最大資産額とその日付を見つける
+  Object.entries(calendarData).forEach(([date, data]) => {
+    if (data.totalAssets > peakAmount) {
+      peakAmount = data.totalAssets;
+      peakDate = date;
+    }
+  });
+
+  // ピーク日付までの期間を計算
+  const peakDateObj = parseDate(peakDate);
+  const diffTime = peakDateObj.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const yearsFromNow = Math.floor(diffDays / 365);
+  const monthsFromNow = Math.floor((diffDays % 365) / 30);
+
+  // ピーク時の年齢を計算
+  let peakAge: number | undefined;
+  if (userAge) {
+    peakAge = userAge + yearsFromNow;
+  }
+
+  let assetAtTargetAge: number | undefined;
+  let targetAchieveDate: string | undefined;
+  let targetAchieveYears: number | undefined;
+  let targetAchieveMonths: number | undefined;
+  let isTargetAchievable: boolean | undefined;
+
+  // 設定年齢時点の資産額を計算
+  if (userAge && targetAge) {
+    const yearsToTarget = targetAge - userAge;
+    const targetDate = new Date(today);
+    targetDate.setFullYear(targetDate.getFullYear() + yearsToTarget);
+
+    // 目標年齢の日付を探す（最も近い日付を選択）
+    let closestDate = "";
+    let minDiff = Infinity;
+
+    Object.keys(calendarData).forEach((dateString) => {
+      const date = parseDate(dateString);
+      const diff = Math.abs(date.getTime() - targetDate.getTime());
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestDate = dateString;
+      }
+    });
+
+    if (closestDate && calendarData[closestDate]) {
+      assetAtTargetAge = calendarData[closestDate].totalAssets;
+      console.log(
+        `Debug: Found target age asset at ${closestDate}: ${assetAtTargetAge}`
+      );
+    } else {
+      console.log(`Debug: No calendar data found for target age ${targetAge}`);
+    }
+  }
+
+  // 目標資産額の達成予定日を計算
+  if (targetAmount) {
+    const sortedDates = Object.keys(calendarData).sort();
+    let found = false;
+
+    for (const dateString of sortedDates) {
+      const data = calendarData[dateString];
+      if (data.totalAssets >= targetAmount) {
+        targetAchieveDate = dateString;
+        const achieveDate = parseDate(dateString);
+        const diffTime = achieveDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        targetAchieveYears = Math.floor(diffDays / 365);
+        targetAchieveMonths = Math.floor((diffDays % 365) / 30);
+        found = true;
+        break;
+      }
+    }
+
+    // 目標達成可否を判定
+    isTargetAchievable = found;
+  }
+
+  return {
+    peakAmount,
+    peakDate,
+    yearsFromNow,
+    monthsFromNow,
+    peakAge,
+    assetAtTargetAge,
+    targetAge,
+    targetAchieveDate,
+    targetAchieveYears,
+    targetAchieveMonths,
+    isTargetAchievable,
+  };
 };

@@ -9,13 +9,34 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { AssetCalendar } from "../components/AssetCalendar";
+import { useAssets } from "../contexts/AssetContext";
+import { useSettings } from "../contexts/SettingsContext";
+import {
+  calculatePeakAssetInfo,
+  formatCurrency,
+  PeakAssetInfo,
+} from "../utils/calculations";
+import { OnboardingData } from "../types";
 
 export const HomeScreen: React.FC = () => {
   const [showTooltip, setShowTooltip] = useState(true);
+  const [peakAssetInfo, setPeakAssetInfo] = useState<PeakAssetInfo | null>(
+    null
+  );
+  const [userAge, setUserAge] = useState<number | null>(null);
+  const { calendarData } = useAssets();
+  const { targetAge, targetAmount } = useSettings();
 
   useEffect(() => {
     checkFirstTime();
+    loadUserData();
   }, []);
+
+  useEffect(() => {
+    if (calendarData && Object.keys(calendarData).length > 0) {
+      calculatePeakInfo();
+    }
+  }, [calendarData, userAge, targetAge, targetAmount]);
 
   const checkFirstTime = async () => {
     try {
@@ -27,6 +48,54 @@ export const HomeScreen: React.FC = () => {
       }
     } catch (error) {
       console.log("Error checking first time:", error);
+    }
+  };
+
+  const loadUserData = async () => {
+    try {
+      const onboardingData = await AsyncStorage.getItem("onboardingData");
+      console.log("Debug: onboardingData from storage =", onboardingData);
+      if (onboardingData) {
+        const data: OnboardingData = JSON.parse(onboardingData);
+        console.log("Debug: parsed onboarding data =", data);
+        if (data.birthDate) {
+          const today = new Date();
+          const birthDate = new Date(data.birthDate);
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+
+          if (
+            monthDiff < 0 ||
+            (monthDiff === 0 && today.getDate() < birthDate.getDate())
+          ) {
+            age--;
+          }
+          console.log("Debug: calculated age =", age);
+          setUserAge(age);
+        } else {
+          console.log("Debug: no birthDate in onboarding data");
+        }
+      } else {
+        console.log("Debug: no onboarding data found");
+      }
+    } catch (error) {
+      console.log("Error loading user data:", error);
+    }
+  };
+
+  const calculatePeakInfo = () => {
+    if (calendarData && Object.keys(calendarData).length > 0) {
+      console.log("Debug: userAge =", userAge);
+      console.log("Debug: targetAge =", targetAge);
+      console.log("Debug: targetAmount =", targetAmount);
+      const info = calculatePeakAssetInfo(
+        calendarData,
+        userAge || undefined,
+        targetAge,
+        targetAmount
+      );
+      console.log("Debug: peakAssetInfo =", info);
+      setPeakAssetInfo(info);
     }
   };
 
@@ -45,6 +114,73 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container}>
+      {/* ピーク資産情報セクション */}
+      {peakAssetInfo && (
+        <View style={styles.peakAssetContainer}>
+          <Text style={styles.peakAssetTitle}>📊 資産予測サマリー</Text>
+
+          <View style={styles.peakAssetContent}>
+            <View style={styles.peakAssetMainInfo}>
+              <Text style={styles.peakAssetLabel}>📈 ピーク予測</Text>
+              <Text style={styles.peakAssetAmount}>
+                {formatCurrency(peakAssetInfo.peakAmount)}
+              </Text>
+              <Text style={styles.peakAssetTiming}>
+                {peakAssetInfo.peakAge && `${peakAssetInfo.peakAge}歳 (`}
+                {peakAssetInfo.yearsFromNow > 0 &&
+                  `${peakAssetInfo.yearsFromNow}年`}
+                {peakAssetInfo.monthsFromNow > 0 &&
+                  `${peakAssetInfo.monthsFromNow}ヶ月`}
+                後{peakAssetInfo.peakAge && ")"}
+              </Text>
+            </View>
+
+            <View style={styles.targetInfoContainer}>
+              {peakAssetInfo.assetAtTargetAge && peakAssetInfo.targetAge && (
+                <View style={styles.targetInfo}>
+                  <Text style={styles.targetLabel}>
+                    {peakAssetInfo.targetAge}歳時点
+                  </Text>
+                  <Text style={styles.targetAmount}>
+                    {formatCurrency(peakAssetInfo.assetAtTargetAge)}
+                  </Text>
+                </View>
+              )}
+
+              {targetAmount && (
+                <View style={styles.targetInfo}>
+                  <Text style={styles.targetLabel}>
+                    目標達成({formatCurrency(targetAmount)})
+                  </Text>
+                  {peakAssetInfo.isTargetAchievable ? (
+                    <>
+                      <Text style={styles.targetTiming}>
+                        {peakAssetInfo.targetAchieveYears! > 0 &&
+                          `${peakAssetInfo.targetAchieveYears}年`}
+                        {peakAssetInfo.targetAchieveMonths! > 0 &&
+                          `${peakAssetInfo.targetAchieveMonths}ヶ月`}
+                        後
+                      </Text>
+                      <Text style={styles.targetAgeInfo}>
+                        {userAge &&
+                          peakAssetInfo.targetAchieveYears &&
+                          `${userAge + peakAssetInfo.targetAchieveYears}歳${
+                            peakAssetInfo.targetAchieveMonths
+                          }ヶ月`}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.targetUnachievable}>
+                      達成できません
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* カレンダー */}
       <View style={styles.calendarContainer}>
         {showTooltip && (
@@ -68,6 +204,85 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+  },
+  peakAssetContainer: {
+    marginHorizontal: 15,
+    marginTop: 15,
+    marginBottom: 10,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  peakAssetTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 16,
+  },
+  peakAssetContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  peakAssetMainInfo: {
+    flex: 1,
+  },
+  peakAssetLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  peakAssetAmount: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#2196F3",
+    marginBottom: 4,
+  },
+  peakAssetTiming: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  targetInfoContainer: {
+    paddingLeft: 16,
+    borderLeftWidth: 1,
+    borderLeftColor: "#E9ECEF",
+    gap: 12,
+  },
+  targetInfo: {
+    alignItems: "flex-end",
+  },
+  targetLabel: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
+  },
+  targetAmount: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#4CAF50",
+  },
+  targetTiming: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FF9800",
+  },
+  targetAgeInfo: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  targetUnachievable: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#F44336",
+    marginTop: 4,
   },
   summaryContainer: {
     backgroundColor: "#fff",
@@ -220,16 +435,10 @@ const styles = StyleSheet.create({
   },
 
   calendarContainer: {
-    marginHorizontal: 15,
+    marginHorizontal: 0,
     marginBottom: 10,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: "transparent",
+    padding: 0,
   },
   calendarTitle: {
     fontSize: 18,

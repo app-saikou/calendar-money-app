@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
+} from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
 
 type MarkedDates = {
@@ -24,10 +31,21 @@ interface AssetCalendarProps {
 export const AssetCalendar: React.FC<AssetCalendarProps> = ({ onDayPress }) => {
   const { calendarData } = useAssets();
   const [selectedDate, setSelectedDate] = useState<string>("");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
   const handleDayPress = (day: DateData) => {
     setSelectedDate(day.dateString);
     onDayPress?.(day.dateString);
+  };
+
+  const handleMonthChange = (year: number, month: number) => {
+    console.log("Changing to:", year, month);
+    const newDate = new Date(year, month - 1, 1);
+    setCurrentDate(newDate);
+    setShowMonthPicker(false);
   };
 
   // カレンダーのマーキングデータを生成
@@ -59,10 +77,142 @@ export const AssetCalendar: React.FC<AssetCalendarProps> = ({ onDayPress }) => {
     };
   });
 
+
+
+  const renderMonthPicker = () => {
+    const years = [];
+    const currentYear = new Date().getFullYear();
+    for (let year = currentYear - 6; year <= currentYear + 100; year++) {
+      years.push(year);
+    }
+
+    const months = [];
+    for (let month = 1; month <= 12; month++) {
+      months.push(month);
+    }
+
+    return (
+      <Modal
+        visible={showMonthPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowMonthPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>年月を選択</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowMonthPicker(false)}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.pickerContainer}>
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>年</Text>
+                <ScrollView style={styles.pickerScrollView}>
+                  {years.map((year) => (
+                    <TouchableOpacity
+                      key={year}
+                      style={[
+                        styles.pickerItem,
+                        selectedYear === year && styles.pickerItemSelected,
+                      ]}
+                      onPress={() => setSelectedYear(year)}
+                    >
+                      <Text
+                        style={[
+                          styles.pickerItemText,
+                          selectedYear === year &&
+                            styles.pickerItemTextSelected,
+                        ]}
+                      >
+                        {year}年
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>月</Text>
+                <ScrollView style={styles.pickerScrollView}>
+                  {months.map((month) => (
+                    <TouchableOpacity
+                      key={month}
+                      style={[
+                        styles.pickerItem,
+                        selectedMonth === month && styles.pickerItemSelected,
+                      ]}
+                      onPress={() => setSelectedMonth(month)}
+                    >
+                      <Text
+                        style={[
+                          styles.pickerItemText,
+                          selectedMonth === month &&
+                            styles.pickerItemTextSelected,
+                        ]}
+                      >
+                        {month}月
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowMonthPicker(false)}
+              >
+                <Text style={styles.cancelButtonText}>キャンセル</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.okButton}
+                onPress={() => handleMonthChange(selectedYear, selectedMonth)}
+              >
+                <Text style={styles.okButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   return (
     <View style={styles.container}>
+      {/* 年月選択ボタン */}
+      <View style={styles.monthSelectorContainer}>
+        <TouchableOpacity
+          style={styles.monthSelectorButton}
+          onPress={() => {
+            console.log("Opening picker for:", currentDate.getFullYear(), currentDate.getMonth() + 1);
+            setSelectedYear(currentDate.getFullYear());
+            setSelectedMonth(currentDate.getMonth() + 1);
+            setShowMonthPicker(true);
+          }}
+        >
+          <Text style={styles.monthSelectorText}>
+            {currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月
+          </Text>
+          <Text style={styles.monthSelectorArrow}>▼</Text>
+        </TouchableOpacity>
+      </View>
+
       <Calendar
+        key={`${currentDate.getFullYear()}-${currentDate.getMonth() + 1}`}
+        current={`${currentDate.getFullYear()}-${String(
+          currentDate.getMonth() + 1
+        ).padStart(2, "0")}-01`}
         onDayPress={handleDayPress}
+        onMonthChange={(month) => {
+          setCurrentDate(new Date(month.year, month.month - 1, 1));
+        }}
         markedDates={markedDates}
         monthFormat={"yyyy年 M月"}
         dayComponent={({ date, state }) => {
@@ -161,6 +311,8 @@ export const AssetCalendar: React.FC<AssetCalendarProps> = ({ onDayPress }) => {
           </View>
         </View>
       )}
+
+      {renderMonthPicker()}
     </View>
   );
 };
@@ -172,52 +324,6 @@ const styles = StyleSheet.create({
   },
   calendar: {
     paddingBottom: 10,
-  },
-  dayContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 4,
-    minHeight: 60,
-    borderRadius: 8,
-    marginHorizontal: 1,
-  },
-  selectedDay: {
-    backgroundColor: "#E3F2FD",
-  },
-  todayContainer: {
-    borderWidth: 2,
-    borderColor: "#2196F3",
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#333",
-    marginBottom: 2,
-  },
-  selectedDayText: {
-    color: "#1976D2",
-    fontWeight: "bold",
-  },
-  todayText: {
-    color: "#2196F3",
-    fontWeight: "bold",
-  },
-  predictionText: {
-    color: "#666",
-  },
-  assetText: {
-    fontSize: 10,
-    color: "#666",
-    textAlign: "center",
-  },
-  selectedAssetText: {
-    color: "#1976D2",
-    fontWeight: "500",
-  },
-  predictionAssetText: {
-    fontStyle: "italic",
-    color: "#999",
   },
   // カスタム日付コンポーネント用のスタイル
   customDayContainer: {
@@ -309,5 +415,143 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#333",
+  },
+  // 年月選択ボタン用スタイル
+  monthSelectorContainer: {
+    alignItems: "center",
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E9ECEF",
+  },
+  monthSelectorButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+  },
+  monthSelectorText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginRight: 8,
+  },
+  monthSelectorArrow: {
+    fontSize: 12,
+    color: "#666",
+  },
+  // モーダル用スタイル
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    width: "90%",
+    maxHeight: "80%",
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E9ECEF",
+    backgroundColor: "#F8F9FA",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  closeButton: {
+    padding: 4,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: "#666",
+  },
+  pickerContainer: {
+    flexDirection: "row",
+    padding: 20,
+    height: 300,
+  },
+  pickerColumn: {
+    flex: 1,
+    alignItems: "center",
+  },
+  pickerLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 10,
+  },
+  pickerScrollView: {
+    flex: 1,
+    width: "100%",
+  },
+  pickerItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  pickerItemSelected: {
+    backgroundColor: "#E3F2FD",
+  },
+  pickerItemText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  pickerItemTextSelected: {
+    color: "#2196F3",
+    fontWeight: "600",
+  },
+  modalFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E9ECEF",
+    backgroundColor: "#F8F9FA",
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginRight: 8,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    color: "#666",
+    fontWeight: "600",
+  },
+  okButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginLeft: 8,
+    backgroundColor: "#2196F3",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  okButtonText: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "600",
   },
 });

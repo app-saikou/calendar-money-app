@@ -11,17 +11,8 @@ import {
   Modal,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-
-interface OnboardingData {
-  name: string;
-  age: number;
-  cashAmount: number;
-  stockAmount: number;
-  stockAnnualReturn: number;
-  monthlyIncome: number;
-  monthlyExpense: number;
-  monthlyStockInvestment: number;
-}
+import { OnboardingData } from "../types";
+import { formatCurrency } from "../utils/calculations";
 
 interface OnboardingScreenProps {
   onComplete: (data: OnboardingData) => void;
@@ -48,6 +39,10 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   const [monthlyIncome, setMonthlyIncome] = useState("");
   const [monthlyExpense, setMonthlyExpense] = useState("");
   const [monthlyStockInvestment, setMonthlyStockInvestment] = useState("");
+
+  // ステップ4: 目標設定
+  const [targetAge, setTargetAge] = useState("65");
+  const [targetAmount, setTargetAmount] = useState("50000000");
 
   // 年齢計算関数
   const calculateAge = (birthDate: Date): number => {
@@ -94,20 +89,35 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
         stockAnnualReturn: parseFloat(stockAnnualReturn) / 100,
       });
       setCurrentStep(3);
-    } else {
+    } else if (currentStep === 3) {
       if (!monthlyIncome || !monthlyExpense) {
         Alert.alert("エラー", "収入と支出を入力してください");
+        return;
+      }
+      setData({
+        ...data,
+        monthlyIncome: parseFloat(monthlyIncome),
+        monthlyExpense: parseFloat(monthlyExpense),
+        monthlyStockInvestment: parseFloat(monthlyStockInvestment) || 0,
+      });
+      setCurrentStep(4);
+    } else {
+      if (!targetAge || !targetAmount) {
+        Alert.alert("エラー", "目標年齢と目標資産額を入力してください");
         return;
       }
       const finalData: OnboardingData = {
         name,
         age: calculateAge(birthDate),
+        birthDate: birthDate.toISOString().split("T")[0], // YYYY-MM-DD format
         cashAmount: parseFloat(cashAmount),
         stockAmount: parseFloat(stockAmount),
         stockAnnualReturn: parseFloat(stockAnnualReturn) / 100,
         monthlyIncome: parseFloat(monthlyIncome),
         monthlyExpense: parseFloat(monthlyExpense),
         monthlyStockInvestment: parseFloat(monthlyStockInvestment) || 0,
+        targetAge: parseInt(targetAge),
+        targetAmount: parseInt(targetAmount),
       };
       onComplete(finalData);
     }
@@ -336,6 +346,98 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     </View>
   );
 
+  const renderStep4 = () => {
+    const presetAges = [60, 65, 70, 75];
+    const presetAmounts = [30000000, 50000000, 100000000, 200000000];
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>🎯 目標設定</Text>
+        <Text style={styles.stepSubtitle}>将来の目標を設定しましょう</Text>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>🎂 目標年齢</Text>
+          <TextInput
+            style={styles.input}
+            value={targetAge}
+            onChangeText={setTargetAge}
+            placeholder="例: 65"
+            keyboardType="numeric"
+          />
+          <Text style={styles.helperText}>
+            この年齢時点での資産額が予測されます
+          </Text>
+
+          <View style={styles.presetContainer}>
+            {presetAges.map((age) => (
+              <TouchableOpacity
+                key={age}
+                style={[
+                  styles.presetButton,
+                  parseInt(targetAge) === age && styles.presetButtonSelected,
+                ]}
+                onPress={() => setTargetAge(age.toString())}
+              >
+                <Text
+                  style={[
+                    styles.presetButtonText,
+                    parseInt(targetAge) === age &&
+                      styles.presetButtonTextSelected,
+                  ]}
+                >
+                  {age}歳
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>💰 目標資産額</Text>
+          <TextInput
+            style={styles.input}
+            value={targetAmount}
+            onChangeText={setTargetAmount}
+            placeholder="例: 50000000（5000万円）"
+            keyboardType="numeric"
+          />
+          {targetAmount && (
+            <Text style={styles.formattedAmount}>
+              {formatCurrency(parseFloat(targetAmount))}
+            </Text>
+          )}
+          <Text style={styles.helperText}>
+            いつ達成できるかがホーム画面に表示されます
+          </Text>
+
+          <View style={styles.presetContainer}>
+            {presetAmounts.map((amount) => (
+              <TouchableOpacity
+                key={amount}
+                style={[
+                  styles.presetButton,
+                  parseInt(targetAmount) === amount &&
+                    styles.presetButtonSelected,
+                ]}
+                onPress={() => setTargetAmount(amount.toString())}
+              >
+                <Text
+                  style={[
+                    styles.presetButtonText,
+                    parseInt(targetAmount) === amount &&
+                      styles.presetButtonTextSelected,
+                  ]}
+                >
+                  {formatCurrency(amount)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
@@ -343,7 +445,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
         <View style={styles.header}>
           <Text style={styles.title}>初期設定</Text>
           <View style={styles.progressContainer}>
-            {[1, 2, 3].map((step) => (
+            {[1, 2, 3, 4].map((step) => (
               <View
                 key={step}
                 style={[
@@ -353,7 +455,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
               />
             ))}
           </View>
-          <Text style={styles.stepIndicator}>ステップ {currentStep} / 3</Text>
+          <Text style={styles.stepIndicator}>ステップ {currentStep} / 4</Text>
         </View>
 
         {/* ステップコンテンツ */}
@@ -361,6 +463,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
           {currentStep === 1 && renderStep1()}
           {currentStep === 2 && renderStep2()}
           {currentStep === 3 && renderStep3()}
+          {currentStep === 4 && renderStep4()}
         </View>
 
         {/* ナビゲーションボタン */}
@@ -581,5 +684,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     textAlign: "center",
+  },
+  presetContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  presetButton: {
+    backgroundColor: "#F8F9FA",
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  presetButtonSelected: {
+    backgroundColor: "#2196F3",
+    borderColor: "#2196F3",
+  },
+  presetButtonText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  presetButtonTextSelected: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });

@@ -49,3 +49,24 @@ export interface AppSettings {
   defaultStockAnnualReturn: number; // デフォルト年利
   displayCurrency: string;
 }
+
+// User and Onboarding types
+export interface User {
+  id: string;
+  email: string;
+  isOnboardingCompleted: boolean;
+}
+
+export interface OnboardingData {
+  name: string;
+  age: number;
+  birthDate?: string; // ISO date string
+  cashAmount: number;
+  stockAmount: number;
+  stockAnnualReturn: number;
+  monthlyIncome: number;
+  monthlyExpense: number;
+  monthlyStockInvestment: number;
+  targetAge?: number;
+  targetAmount?: number;
+}
