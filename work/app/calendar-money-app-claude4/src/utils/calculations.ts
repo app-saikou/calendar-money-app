@@ -202,16 +202,10 @@ export const calculateAssetProjection = (
         formatDate(today)
       );
 
-      // 月初・月末の判定
+      // 月初の判定
       const isMonthStart = currentDate.getDate() === 1;
-      const isMonthEnd =
-        currentDate.getDate() ===
-        getLastDayOfMonth(
-          currentDate.getFullYear(),
-          currentDate.getMonth() + 1
-        ).getDate();
 
-      // 月初の株式投資移動を先に計算
+      // 初期資産額
       let cashAmount = baseAssets.find((a) => a.type === "cash")?.amount || 0;
       let stockAmount = baseAssets.find((a) => a.type === "stock")?.amount || 0;
 
@@ -222,28 +216,27 @@ export const calculateAssetProjection = (
         ? fixedBudget.income - fixedBudget.expense
         : 0;
 
-      // 月初に株式投資移動
-      if (isMonthStart && monthlyStockInvestment > 0) {
-        cashAmount -= monthlyStockInvestment;
-        stockAmount += monthlyStockInvestment;
-      }
-
-      // 月末に収支を反映
-      if (isMonthEnd) {
+      // 月初の処理
+      if (isMonthStart) {
+        // 1. 毎月の収支（収入−支出）を月初に現金に加算
         cashAmount += monthlyNetCash;
+
+        // 2. 毎月の積立額を月初に現金から株式へ移動
+        if (monthlyStockInvestment > 0) {
+          cashAmount -= monthlyStockInvestment;
+          stockAmount += monthlyStockInvestment;
+        }
       }
 
-      // 株式の複利計算（毎日）
-      const monthsDiff = getMonthsDifference(today, currentDate);
+      // 3. 株式資産は年利を365日で割った日利を使って、日ごとに複利で成長させる
       if (stockAmount > 0) {
         const stockAsset = baseAssets.find((a) => a.type === "stock");
         if (stockAsset && stockAsset.annualReturn) {
-          // 移動後のstockAmountで複利計算
-          stockAmount = calculateCompoundInterest(
-            stockAmount, // ← 移動後の金額を使用
-            stockAsset.annualReturn,
-            monthsDiff
-          );
+          // 年利を日利に変換
+          const dailyRate = stockAsset.annualReturn / 365;
+
+          // その日の複利計算
+          stockAmount = stockAmount * (1 + dailyRate);
         }
       }
 
@@ -271,15 +264,10 @@ export const calculateAssetProjection = (
       .filter((asset) => asset.type === "stock")
       .reduce((sum, asset) => sum + asset.amount, 0);
 
-    // デバッグ: 月末の計算を確認
-    const isMonthEnd =
-      currentDate.getDate() ===
-      getLastDayOfMonth(
-        currentDate.getFullYear(),
-        currentDate.getMonth() + 1
-      ).getDate();
+    // デバッグ: 月初の計算を確認
+    const isMonthStart = currentDate.getDate() === 1;
 
-    if (isMonthEnd) {
+    if (isMonthStart) {
       console.log(
         `Debug: ${dateString} - Cash: ${cashAmount}, Stock: ${stockAmount}, Total: ${totalAssets}`
       );

@@ -8,23 +8,30 @@ import {
   ScrollView,
   Alert,
   FlatList,
+  Modal,
 } from "react-native";
 
 import { useAssets } from "../contexts/AssetContext";
 import { Transaction } from "../types";
 import { formatCurrency } from "../utils/calculations";
+import { Icon, ICONS } from "../components/Icon";
 
 export const TransactionScreen: React.FC = () => {
-  const { addTransaction, transactions, deleteTransaction } = useAssets();
+  const { addTransaction, transactions, deleteTransaction, assets } =
+    useAssets();
 
   const [formData, setFormData] = useState({
     amount: "",
     description: "",
     type: "income" as "income" | "expense" | "stock_investment",
     date: new Date().toISOString().split("T")[0],
+    fromAssetId: "",
+    toAssetId: "",
   });
 
   const [showHistory, setShowHistory] = useState(false);
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [pickerType, setPickerType] = useState<"from" | "to">("to");
 
   const resetForm = () => {
     setFormData({
@@ -32,6 +39,8 @@ export const TransactionScreen: React.FC = () => {
       description: "",
       type: "income",
       date: new Date().toISOString().split("T")[0],
+      fromAssetId: "",
+      toAssetId: "",
     });
   };
 
@@ -47,6 +56,23 @@ export const TransactionScreen: React.FC = () => {
       return;
     }
 
+    // 資産選択の検証
+    if (formData.type === "income" && !formData.toAssetId) {
+      Alert.alert("エラー", "収入先の資産を選択してください");
+      return;
+    }
+    if (formData.type === "expense" && !formData.fromAssetId) {
+      Alert.alert("エラー", "支出元の資産を選択してください");
+      return;
+    }
+    if (
+      formData.type === "stock_investment" &&
+      (!formData.fromAssetId || !formData.toAssetId)
+    ) {
+      Alert.alert("エラー", "移動元と移動先の資産を選択してください");
+      return;
+    }
+
     // 支出と株式投資の場合は負の値にする
     const finalAmount = formData.type === "income" ? amount : -amount;
 
@@ -55,6 +81,8 @@ export const TransactionScreen: React.FC = () => {
       description: formData.description,
       type: formData.type,
       date: formData.date,
+      fromAssetId: formData.fromAssetId,
+      toAssetId: formData.toAssetId,
     });
 
     Alert.alert("成功", "取引を記録しました");
@@ -75,13 +103,13 @@ export const TransactionScreen: React.FC = () => {
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case "income":
-        return { icon: "📈", color: "#4CAF50" };
+        return { icon: ICONS.INCOME, color: "#4CAF50" };
       case "expense":
-        return { icon: "📉", color: "#F44336" };
+        return { icon: ICONS.EXPENSE, color: "#F44336" };
       case "stock_investment":
-        return { icon: "📊", color: "#2196F3" };
+        return { icon: ICONS.INVESTMENT, color: "#2196F3" };
       default:
-        return { icon: "💰", color: "#666" };
+        return { icon: ICONS.MONEY, color: "#666" };
     }
   };
 
@@ -95,6 +123,114 @@ export const TransactionScreen: React.FC = () => {
         return "株式投資";
       default:
         return "不明";
+    }
+  };
+
+  const renderAssetSelection = () => {
+    const cashAssets = assets.filter((asset) => asset.type === "cash");
+    const stockAssets = assets.filter((asset) => asset.type === "stock");
+
+    const getSelectedAssetName = (assetId: string) => {
+      const asset = assets.find((a) => a.id === assetId);
+      return asset
+        ? `${asset.name} (${formatCurrency(asset.amount)})`
+        : "選択してください";
+    };
+
+    const openAssetPicker = (type: "from" | "to") => {
+      setPickerType(type);
+      setShowAssetPicker(true);
+    };
+
+    const getAvailableAssets = () => {
+      switch (formData.type) {
+        case "income":
+          return cashAssets;
+        case "expense":
+          return cashAssets;
+        case "stock_investment":
+          return pickerType === "from" ? cashAssets : stockAssets;
+        default:
+          return [];
+      }
+    };
+
+    switch (formData.type) {
+      case "income":
+        return (
+          <View style={styles.assetSelectionContainer}>
+            <Text style={styles.assetSelectionLabel}>📥 収入先の資産</Text>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => openAssetPicker("to")}
+            >
+              <Text style={styles.dropdownButtonText}>
+                {formData.toAssetId
+                  ? getSelectedAssetName(formData.toAssetId)
+                  : "選択してください"}
+              </Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case "expense":
+        return (
+          <View style={styles.assetSelectionContainer}>
+            <Text style={styles.assetSelectionLabel}>📤 支出元の資産</Text>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => openAssetPicker("from")}
+            >
+              <Text style={styles.dropdownButtonText}>
+                {formData.fromAssetId
+                  ? getSelectedAssetName(formData.fromAssetId)
+                  : "選択してください"}
+              </Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case "stock_investment":
+        return (
+          <View style={styles.assetSelectionContainer}>
+            <Text style={styles.assetSelectionLabel}>🔄 資産移動</Text>
+            <View style={styles.assetSelectionRow}>
+              <View style={styles.assetSelectionColumn}>
+                <Text style={styles.assetSelectionSubLabel}>移動元</Text>
+                <TouchableOpacity
+                  style={styles.dropdownButton}
+                  onPress={() => openAssetPicker("from")}
+                >
+                  <Text style={styles.dropdownButtonText}>
+                    {formData.fromAssetId
+                      ? getSelectedAssetName(formData.fromAssetId)
+                      : "選択してください"}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.assetSelectionColumn}>
+                <Text style={styles.assetSelectionSubLabel}>移動先</Text>
+                <TouchableOpacity
+                  style={styles.dropdownButton}
+                  onPress={() => openAssetPicker("to")}
+                >
+                  <Text style={styles.dropdownButtonText}>
+                    {formData.toAssetId
+                      ? getSelectedAssetName(formData.toAssetId)
+                      : "選択してください"}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        );
+
+      default:
+        return null;
     }
   };
 
@@ -143,7 +279,7 @@ export const TransactionScreen: React.FC = () => {
               style={styles.deleteButton}
               onPress={() => confirmDeleteTransaction(item)}
             >
-              <Text style={styles.deleteIcon}>🗑️</Text>
+              <Icon name={ICONS.DELETE} size={18} color="#F44336" />
             </TouchableOpacity>
           </View>
         </View>
@@ -172,14 +308,11 @@ export const TransactionScreen: React.FC = () => {
               ]}
               onPress={() => setFormData({ ...formData, type: "income" })}
             >
-              <Text
-                style={[
-                  styles.typeButtonIcon,
-                  { color: formData.type === "income" ? "#fff" : "#4CAF50" },
-                ]}
-              >
-                📈
-              </Text>
+              <Icon
+                name={ICONS.INCOME}
+                size={20}
+                color={formData.type === "income" ? "#fff" : "#4CAF50"}
+              />
               <Text
                 style={[
                   styles.typeButtonText,
@@ -197,14 +330,11 @@ export const TransactionScreen: React.FC = () => {
               ]}
               onPress={() => setFormData({ ...formData, type: "expense" })}
             >
-              <Text
-                style={[
-                  styles.typeButtonIcon,
-                  { color: formData.type === "expense" ? "#fff" : "#F44336" },
-                ]}
-              >
-                📉
-              </Text>
+              <Icon
+                name={ICONS.EXPENSE}
+                size={20}
+                color={formData.type === "expense" ? "#fff" : "#F44336"}
+              />
               <Text
                 style={[
                   styles.typeButtonText,
@@ -224,17 +354,13 @@ export const TransactionScreen: React.FC = () => {
                 setFormData({ ...formData, type: "stock_investment" })
               }
             >
-              <Text
-                style={[
-                  styles.typeButtonIcon,
-                  {
-                    color:
-                      formData.type === "stock_investment" ? "#fff" : "#2196F3",
-                  },
-                ]}
-              >
-                📊
-              </Text>
+              <Icon
+                name={ICONS.INVESTMENT}
+                size={20}
+                color={
+                  formData.type === "stock_investment" ? "#fff" : "#2196F3"
+                }
+              />
               <Text
                 style={[
                   styles.typeButtonText,
@@ -278,6 +404,85 @@ export const TransactionScreen: React.FC = () => {
               placeholder="取引の説明を入力"
             />
           </View>
+
+          {/* 資産選択 */}
+          {renderAssetSelection()}
+
+          {/* 資産選択Modal */}
+          <Modal
+            visible={showAssetPicker}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowAssetPicker(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {formData.type === "income" &&
+                      pickerType === "to" &&
+                      "収入先の資産を選択"}
+                    {formData.type === "expense" &&
+                      pickerType === "from" &&
+                      "支出元の資産を選択"}
+                    {formData.type === "stock_investment" &&
+                      pickerType === "from" &&
+                      "移動元の資産を選択"}
+                    {formData.type === "stock_investment" &&
+                      pickerType === "to" &&
+                      "移動先の資産を選択"}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowAssetPicker(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <Text style={styles.modalCloseText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.modalBody}>
+                  {(() => {
+                    const cashAssets = assets.filter(
+                      (asset) => asset.type === "cash"
+                    );
+                    const stockAssets = assets.filter(
+                      (asset) => asset.type === "stock"
+                    );
+                    const availableAssets =
+                      formData.type === "stock_investment" &&
+                      pickerType === "to"
+                        ? stockAssets
+                        : cashAssets;
+
+                    return availableAssets.map((asset) => (
+                      <TouchableOpacity
+                        key={asset.id}
+                        style={styles.modalAssetOption}
+                        onPress={() => {
+                          if (pickerType === "from") {
+                            setFormData((prev) => ({
+                              ...prev,
+                              fromAssetId: asset.id,
+                            }));
+                          } else {
+                            setFormData((prev) => ({
+                              ...prev,
+                              toAssetId: asset.id,
+                            }));
+                          }
+                          setShowAssetPicker(false);
+                        }}
+                      >
+                        <Text style={styles.modalAssetName}>{asset.name}</Text>
+                        <Text style={styles.modalAssetAmount}>
+                          {formatCurrency(asset.amount)}
+                        </Text>
+                      </TouchableOpacity>
+                    ));
+                  })()}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
 
           {/* 日付入力 */}
           <View style={styles.inputGroup}>
@@ -521,5 +726,127 @@ const styles = StyleSheet.create({
   },
   historyToggleIcon: {
     fontSize: 16,
+  },
+  // 資産選択のスタイル
+  assetSelectionContainer: {
+    marginTop: 16,
+  },
+  assetSelectionLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  assetSelectionSubLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#666",
+    marginBottom: 8,
+  },
+  assetOptions: {
+    gap: 8,
+  },
+  assetSelectionRow: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  assetSelectionColumn: {
+    flex: 1,
+  },
+  assetOption: {
+    padding: 12,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+    marginBottom: 8,
+  },
+  assetOptionSelected: {
+    backgroundColor: "#E3F2FD",
+    borderColor: "#2196F3",
+  },
+  assetOptionText: {
+    fontSize: 14,
+    color: "#333",
+    textAlign: "center",
+  },
+  assetOptionTextSelected: {
+    color: "#2196F3",
+    fontWeight: "600",
+  },
+  // ドロップダウンボタンのスタイル
+  dropdownButton: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+  },
+  dropdownButtonText: {
+    fontSize: 14,
+    color: "#333",
+    flex: 1,
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    color: "#666",
+    marginLeft: 8,
+  },
+  // Modalのスタイル
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    width: "90%",
+    maxHeight: "70%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E9ECEF",
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    flex: 1,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: "#666",
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalAssetOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  modalAssetName: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "500",
+  },
+  modalAssetAmount: {
+    fontSize: 14,
+    color: "#666",
   },
 });

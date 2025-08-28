@@ -1,10 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Asset, Transaction, MonthlyBudget, CalendarDayData } from "../types";
-import {
-  calculateAssetProjection,
-  formatCurrency,
-} from "../utils/calculations";
+import { calculateAssetProjection } from "../utils/calculations";
 
 interface AssetContextType {
   assets: Asset[];
@@ -140,7 +137,10 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const deleteAsset = (id: string) => {
     setAssets((prev) => prev.filter((a) => a.id !== id));
-    setTransactions((prev) => prev.filter((t) => t.assetId !== id));
+    // 資産を削除する際は、その資産に関連する取引も削除
+    setTransactions((prev) =>
+      prev.filter((t) => t.fromAssetId !== id && t.toAssetId !== id)
+    );
   };
 
   // Transaction management functions
@@ -150,6 +150,44 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
       id: Date.now().toString(),
     };
     setTransactions((prev) => [...prev, newTransaction]);
+
+    // 資産額を更新
+    setAssets((prev) => {
+      const updatedAssets = [...prev];
+
+      if (transaction.type === "stock_investment") {
+        // 株式投資: 選択された資産間で移動
+        const fromAsset = updatedAssets.find(
+          (a) => a.id === transaction.fromAssetId
+        );
+        const toAsset = updatedAssets.find(
+          (a) => a.id === transaction.toAssetId
+        );
+
+        if (fromAsset && toAsset) {
+          fromAsset.amount -= Math.abs(transaction.amount);
+          toAsset.amount += Math.abs(transaction.amount);
+        }
+      } else if (transaction.type === "income") {
+        // 収入: 選択された資産に加算
+        const toAsset = updatedAssets.find(
+          (a) => a.id === transaction.toAssetId
+        );
+        if (toAsset) {
+          toAsset.amount += transaction.amount;
+        }
+      } else if (transaction.type === "expense") {
+        // 支出: 選択された資産から減算
+        const fromAsset = updatedAssets.find(
+          (a) => a.id === transaction.fromAssetId
+        );
+        if (fromAsset) {
+          fromAsset.amount += transaction.amount; // transaction.amountは負の値
+        }
+      }
+
+      return updatedAssets;
+    });
   };
 
   const updateTransaction = (id: string, transaction: Partial<Transaction>) => {
@@ -159,7 +197,50 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const deleteTransaction = (id: string) => {
+    // 削除する取引を取得
+    const transactionToDelete = transactions.find((t) => t.id === id);
+
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+
+    // 資産額を逆更新
+    if (transactionToDelete) {
+      setAssets((prev) => {
+        const updatedAssets = [...prev];
+
+        if (transactionToDelete.type === "stock_investment") {
+          // 株式投資削除: 選択された資産間で逆移動
+          const fromAsset = updatedAssets.find(
+            (a) => a.id === transactionToDelete.fromAssetId
+          );
+          const toAsset = updatedAssets.find(
+            (a) => a.id === transactionToDelete.toAssetId
+          );
+
+          if (fromAsset && toAsset) {
+            fromAsset.amount += Math.abs(transactionToDelete.amount);
+            toAsset.amount -= Math.abs(transactionToDelete.amount);
+          }
+        } else if (transactionToDelete.type === "income") {
+          // 収入削除: 選択された資産から減算
+          const toAsset = updatedAssets.find(
+            (a) => a.id === transactionToDelete.toAssetId
+          );
+          if (toAsset) {
+            toAsset.amount -= transactionToDelete.amount;
+          }
+        } else if (transactionToDelete.type === "expense") {
+          // 支出削除: 選択された資産に加算
+          const fromAsset = updatedAssets.find(
+            (a) => a.id === transactionToDelete.fromAssetId
+          );
+          if (fromAsset) {
+            fromAsset.amount -= transactionToDelete.amount; // transaction.amountは負の値なので減算
+          }
+        }
+
+        return updatedAssets;
+      });
+    }
   };
 
   // Budget management functions

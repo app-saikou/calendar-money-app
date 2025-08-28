@@ -1,40 +1,20 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../hooks/useAuth";
+import { Icon, ICONS } from "../components/Icon";
 
 export const AccountSettingsScreen: React.FC = () => {
-  const { logout, user } = useAuth();
-
-  const handleLogout = () => {
-    Alert.alert(
-      "ログアウト",
-      "ログアウトしますか？すべてのデータが削除されます。",
-      [
-        { text: "キャンセル", style: "cancel" },
-        {
-          text: "ログアウト",
-          style: "destructive",
-          onPress: () => {
-            logout();
-          },
-        },
-      ]
-    );
-  };
+  const { user } = useAuth();
 
   return (
     <ScrollView style={styles.container}>
       {/* ユーザー情報セクション */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>👤 ユーザー情報</Text>
+        <View style={styles.sectionTitleContainer}>
+          <Icon name={ICONS.USER} size={20} color="#333" />
+          <Text style={styles.sectionTitle}> ユーザー情報</Text>
+        </View>
         <Text style={styles.sectionSubtitle}>現在のアカウント情報</Text>
 
         <View style={styles.userInfoContainer}>
@@ -57,7 +37,10 @@ export const AccountSettingsScreen: React.FC = () => {
 
       {/* アカウント管理セクション */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>🔧 アカウント管理</Text>
+        <View style={styles.sectionTitleContainer}>
+          <Icon name={ICONS.SETTINGS} size={20} color="#333" />
+          <Text style={styles.sectionTitle}> アカウント管理</Text>
+        </View>
         <Text style={styles.sectionSubtitle}>アカウントの操作</Text>
 
         <View style={styles.comingSoonContainer}>
@@ -66,11 +49,6 @@ export const AccountSettingsScreen: React.FC = () => {
             • パスワード変更{"\n"}• プロフィール編集{"\n"}• データエクスポート
           </Text>
         </View>
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonIcon}>🚪</Text>
-          <Text style={styles.logoutButtonText}>ログアウト</Text>
-        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -96,6 +74,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: "#333",
+    marginLeft: 8,
+  },
+  sectionTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   sectionSubtitle: {
@@ -142,22 +125,5 @@ const styles = StyleSheet.create({
     color: "#999",
     textAlign: "center",
     lineHeight: 20,
-  },
-  logoutButton: {
-    backgroundColor: "#F44336",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoutButtonIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  logoutButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
   },
 });

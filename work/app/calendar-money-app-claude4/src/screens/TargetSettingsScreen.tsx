@@ -11,6 +11,7 @@ import {
 
 import { useSettings } from "../contexts/SettingsContext";
 import { formatCurrency } from "../utils/calculations";
+import { Icon, ICONS } from "../components/Icon";
 
 export const TargetSettingsScreen: React.FC = () => {
   const { targetAge, setTargetAge, targetAmount, setTargetAmount } =
@@ -73,7 +74,10 @@ export const TargetSettingsScreen: React.FC = () => {
     <ScrollView style={styles.container}>
       {/* 目標年齢設定セクション */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>🎯 目標年齢設定</Text>
+        <View style={styles.sectionTitleContainer}>
+          <Icon name={ICONS.TARGET} size={20} color="#333" />
+          <Text style={styles.sectionTitle}> 目標年齢設定</Text>
+        </View>
         <Text style={styles.sectionSubtitle}>
           資産予測の目標年齢を設定できます
         </Text>
@@ -119,14 +123,17 @@ export const TargetSettingsScreen: React.FC = () => {
         </View>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSaveAge}>
-          <Text style={styles.saveButtonIcon}>💾</Text>
+          <Icon name={ICONS.SAVE} size={18} color="#fff" />
           <Text style={styles.saveButtonText}>年齢を保存</Text>
         </TouchableOpacity>
       </View>
 
       {/* 目標資産額設定セクション */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>💰 目標資産額設定</Text>
+        <View style={styles.sectionTitleContainer}>
+          <Icon name={ICONS.MONEY} size={20} color="#333" />
+          <Text style={styles.sectionTitle}> 目標資産額設定</Text>
+        </View>
         <Text style={styles.sectionSubtitle}>
           達成したい資産額を設定できます
         </Text>
@@ -178,14 +185,17 @@ export const TargetSettingsScreen: React.FC = () => {
         </View>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSaveAmount}>
-          <Text style={styles.saveButtonIcon}>💾</Text>
+          <Icon name={ICONS.SAVE} size={18} color="#fff" />
           <Text style={styles.saveButtonText}>資産額を保存</Text>
         </TouchableOpacity>
       </View>
 
       {/* 説明セクション */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>📋 目標設定について</Text>
+        <View style={styles.sectionTitleContainer}>
+          <Icon name={ICONS.SUMMARY} size={20} color="#333" />
+          <Text style={styles.sectionTitle}> 目標設定について</Text>
+        </View>
         <Text style={styles.explanationText}>
           <Text style={styles.boldText}>目標年齢:</Text>
           {"\n"}•
@@ -222,6 +232,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: "#333",
+    marginLeft: 8,
+  },
+  sectionTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   sectionSubtitle: {

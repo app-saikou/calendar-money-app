@@ -13,6 +13,7 @@ import {
 import { useAssets } from "../contexts/AssetContext";
 import { Asset } from "../types";
 import { formatCurrency } from "../utils/calculations";
+import { Icon, ICONS } from "../components/Icon";
 
 export const AssetManagementScreen: React.FC = () => {
   const {
@@ -139,13 +140,13 @@ export const AssetManagementScreen: React.FC = () => {
           style={styles.actionButton}
           onPress={() => openModal(item)}
         >
-          <Text style={styles.actionIcon}>✏️</Text>
+          <Icon name={ICONS.EDIT} size={18} color="#2196F3" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => confirmDeleteAsset(item)}
         >
-          <Text style={styles.actionIcon}>🗑️</Text>
+          <Icon name={ICONS.DELETE} size={18} color="#F44336" />
         </TouchableOpacity>
       </View>
     </View>

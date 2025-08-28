@@ -4,10 +4,11 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { Text, View, ActivityIndicator, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { AssetProvider } from "./src/contexts/AssetContext";
-import { AuthProvider, useAuth } from "./src/contexts/AuthContext";
 import { SettingsProvider } from "./src/contexts/SettingsContext";
+import { useAuth } from "./src/hooks/useAuth";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { AssetManagementScreen } from "./src/screens/AssetManagementScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
@@ -16,7 +17,6 @@ import { BudgetSettingsScreen } from "./src/screens/BudgetSettingsScreen";
 import { TargetSettingsScreen } from "./src/screens/TargetSettingsScreen";
 import { TransactionScreen } from "./src/screens/TransactionScreen";
 import { AuthScreen } from "./src/screens/AuthScreen";
-import { OnboardingScreen } from "./src/screens/OnboardingScreen";
 
 const Tab = createBottomTabNavigator();
 const SettingsStack = createNativeStackNavigator();
@@ -69,9 +69,9 @@ const SettingsStackScreen: React.FC = () => {
 
 // メインアプリコンポーネント（認証状態に基づいて表示を切り替え）
 const MainApp: React.FC = () => {
-  const { user, isLoading, login, completeOnboarding } = useAuth();
+  const { user, loading } = useAuth();
 
-  if (isLoading) {
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2196F3" />
@@ -82,119 +82,92 @@ const MainApp: React.FC = () => {
 
   // 未ログインの場合
   if (!user) {
-    return (
-      <AuthScreen
-        onLogin={async (userId) => {
-          await login(userId, "temp@example.com");
-        }}
-      />
-    );
+    return <AuthScreen />;
   }
 
-  // オンボーディング未完了の場合
-  if (!user.isOnboardingCompleted) {
-    return (
-      <OnboardingScreen
-        onComplete={async (data) => {
-          await completeOnboarding(data);
-        }}
-      />
-    );
-  }
-
-  // メインアプリ
+  // ログイン済みの場合
   return (
-    <SettingsProvider>
-      <AssetProvider>
-        <NavigationContainer>
-          <StatusBar style="light" />
-          <Tab.Navigator
-            screenOptions={({ route }) => ({
-              tabBarIcon: ({ focused, color, size }) => {
-                let icon: string;
+    <NavigationContainer>
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          tabBarIcon: ({ focused, color, size }) => {
+            let iconName: keyof typeof Ionicons.glyphMap;
 
-                if (route.name === "Home") {
-                  icon = focused ? "🏠" : "🏠";
-                } else if (route.name === "Assets") {
-                  icon = focused ? "💰" : "💰";
-                } else if (route.name === "Settings") {
-                  icon = focused ? "⚙️" : "⚙️";
-                } else if (route.name === "Transaction") {
-                  icon = focused ? "📝" : "📝";
-                } else {
-                  icon = "❓";
-                }
+            if (route.name === "Home") {
+              iconName = focused ? "home" : "home-outline";
+            } else if (route.name === "Assets") {
+              iconName = focused ? "wallet" : "wallet-outline";
+            } else if (route.name === "Transaction") {
+              iconName = focused ? "add-circle" : "add-circle-outline";
+            } else if (route.name === "Settings") {
+              iconName = focused ? "settings" : "settings-outline";
+            } else {
+              iconName = "help-circle-outline";
+            }
 
-                return (
-                  <Text style={{ fontSize: size, color: color }}>{icon}</Text>
-                );
-              },
-              tabBarActiveTintColor: "#2196F3",
-              tabBarInactiveTintColor: "gray",
-              tabBarStyle: {
-                backgroundColor: "#fff",
-                borderTopWidth: 1,
-                borderTopColor: "#e0e0e0",
-                height: 90,
-                paddingBottom: 20,
-                paddingTop: 10,
-              },
-              tabBarLabelStyle: {
-                fontSize: 12,
-                fontWeight: "500",
-              },
-              headerStyle: {
-                backgroundColor: "#2196F3",
-              },
-              headerTintColor: "#fff",
-              headerTitleStyle: {
-                fontWeight: "bold",
-              },
-            })}
-          >
-            <Tab.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{
-                title: "ホーム",
-              }}
-            />
-            <Tab.Screen
-              name="Transaction"
-              component={TransactionScreen}
-              options={{
-                title: "収支記録",
-              }}
-            />
-            <Tab.Screen
-              name="Assets"
-              component={AssetManagementScreen}
-              options={{
-                title: "資産管理",
-              }}
-            />
-            <Tab.Screen
-              name="Settings"
-              component={SettingsStackScreen}
-              options={{
-                title: "設定",
-                headerShown: false,
-              }}
-            />
-          </Tab.Navigator>
-        </NavigationContainer>
-      </AssetProvider>
-    </SettingsProvider>
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
+          tabBarActiveTintColor: "#2196F3",
+          tabBarInactiveTintColor: "#8E8E93",
+          tabBarStyle: {
+            backgroundColor: "#fff",
+            borderTopWidth: 1,
+            borderTopColor: "#E5E5EA",
+            paddingBottom: 8,
+            paddingTop: 8,
+            height: 88,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: "500",
+            marginTop: 4,
+          },
+          headerStyle: {
+            backgroundColor: "#2196F3",
+          },
+          headerTintColor: "#fff",
+          headerTitleStyle: {
+            fontWeight: "bold",
+          },
+        })}
+      >
+        <Tab.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{
+            title: "ホーム",
+            tabBarLabel: "ホーム",
+          }}
+        />
+        <Tab.Screen
+          name="Assets"
+          component={AssetManagementScreen}
+          options={{
+            title: "資産管理",
+            tabBarLabel: "資産",
+          }}
+        />
+        <Tab.Screen
+          name="Transaction"
+          component={TransactionScreen}
+          options={{
+            title: "収支登録",
+            tabBarLabel: "取引",
+          }}
+        />
+        <Tab.Screen
+          name="Settings"
+          component={SettingsStackScreen}
+          options={{
+            title: "設定",
+            tabBarLabel: "設定",
+            headerShown: false,
+          }}
+        />
+      </Tab.Navigator>
+    </NavigationContainer>
   );
 };
-
-export default function App() {
-  return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
-  );
-}
 
 const styles = StyleSheet.create({
   loadingContainer: {
@@ -209,3 +182,16 @@ const styles = StyleSheet.create({
     color: "#666",
   },
 });
+
+export default function App() {
+  return (
+    <>
+      <StatusBar style="light" />
+      <AssetProvider>
+        <SettingsProvider>
+          <MainApp />
+        </SettingsProvider>
+      </AssetProvider>
+    </>
+  );
+}

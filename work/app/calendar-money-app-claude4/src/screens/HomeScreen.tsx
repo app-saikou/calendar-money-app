@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from "react-native";
+import { Icon, ICONS } from "../components/Icon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { AssetCalendar } from "../components/AssetCalendar";
@@ -117,11 +118,22 @@ export const HomeScreen: React.FC = () => {
       {/* ピーク資産情報セクション */}
       {peakAssetInfo && (
         <View style={styles.peakAssetContainer}>
-          <Text style={styles.peakAssetTitle}>📊 資産予測サマリー</Text>
+          <View style={styles.peakAssetTitleContainer}>
+            <Icon name={ICONS.CHART} size={20} color="#333" />
+            <Text style={styles.peakAssetTitle}> 資産予測サマリー</Text>
+          </View>
 
           <View style={styles.peakAssetContent}>
             <View style={styles.peakAssetMainInfo}>
-              <Text style={styles.peakAssetLabel}>📈 ピーク予測</Text>
+              <View style={styles.peakAssetLabelContainer}>
+                <Icon
+                  name={ICONS.INCOME}
+                  size={16}
+                  color="#2196F3"
+                  style={styles.peakAssetIcon}
+                />
+                <Text style={styles.peakAssetLabel}> ピーク予測</Text>
+              </View>
               <Text style={styles.peakAssetAmount}>
                 {formatCurrency(peakAssetInfo.peakAmount)}
               </Text>
@@ -222,7 +234,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#333",
+    marginLeft: 2,
+  },
+  peakAssetTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
+  },
+  peakAssetLabelContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  peakAssetIcon: {
+    marginTop: 2,
   },
   peakAssetContent: {
     flexDirection: "row",
@@ -236,6 +261,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#333",
+    marginLeft: 6,
     marginBottom: 8,
   },
   peakAssetAmount: {

@@ -14,16 +14,36 @@ export interface Transaction {
   amount: number; // 正の値: 収入、負の値: 支出
   description: string;
   type: "income" | "expense" | "stock_investment";
-  assetId?: string;
+  fromAssetId?: string; // 支出元・移動元の資産ID
+  toAssetId?: string; // 収入先・移動先の資産ID
 }
 
 // Budget types
+export interface BudgetCategory {
+  id: string;
+  name: string;
+  amount: number;
+  type: 'income' | 'expense';
+  startDate: string; // YYYY-MM-DD format
+  endDate?: string; // YYYY-MM-DD format (undefined = 無期限)
+}
+
+export interface StockInvestment {
+  id: string;
+  name: string;
+  amount: number;
+  startDate: string; // YYYY-MM-DD format
+  endDate?: string; // YYYY-MM-DD format (undefined = 無期限)
+}
+
 export interface MonthlyBudget {
   id: string;
   month: string; // YYYY-MM format
   income: number;
   expense: number;
-  stockInvestment: number; // 毎月の株式積立額
+  stockInvestments: StockInvestment[]; // 複数の株式投資設定
+  startDate: string; // YYYY-MM-DD format
+  endDate?: string; // YYYY-MM-DD format (undefined = 無期限)
 }
 
 // Calendar day data
