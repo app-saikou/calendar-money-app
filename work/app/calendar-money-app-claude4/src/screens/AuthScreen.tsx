@@ -60,12 +60,8 @@ export const AuthScreen: React.FC = () => {
             errorMessage = error.message;
           }
           Alert.alert("アカウント作成エラー", errorMessage);
-        } else {
-          Alert.alert(
-            "アカウント作成完了",
-            "アカウントを作成しました。\n\nメール確認が必要な場合は、送信されたメールの確認リンクをクリックしてください。"
-          );
         }
+        // 成功時はアラートを表示せず、自動的にオンボーディング画面に遷移
       } else {
         console.log("サインイン試行:", email);
         const { data, error } = await signIn(email, password);

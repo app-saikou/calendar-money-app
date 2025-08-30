@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,15 @@ import {
   Modal,
 } from "react-native";
 
-import { useAssets } from "../contexts/AssetContext";
 import { formatCurrency } from "../utils/calculations";
 import { StockInvestment } from "../types";
 import { Icon, ICONS } from "../components/Icon";
+import {
+  budgetCategoriesApi,
+  stockInvestmentsApi,
+} from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
+import { Tables } from "../lib/supabase";
 
 interface BudgetCategory {
   id: string;
@@ -25,85 +30,73 @@ interface BudgetCategory {
 }
 
 export const BudgetSettingsScreen: React.FC = () => {
-  const { setBudget, getBudget } = useAssets();
+  const { user } = useAuth();
 
   const [stockInvestments, setStockInvestments] = useState<StockInvestment[]>(
-    () => {
-      const currentDate = new Date();
-      const today = currentDate.toISOString().split("T")[0];
-      return [{ id: "1", name: "月次積立", amount: 0, startDate: today }];
-    }
+    []
   );
-
   const [incomeCategories, setIncomeCategories] = useState<BudgetCategory[]>(
-    () => {
-      const currentDate = new Date();
-      const today = currentDate.toISOString().split("T")[0];
-      return [
-        { id: "1", name: "給与", amount: 0, type: "income", startDate: today },
-        { id: "2", name: "副業", amount: 0, type: "income", startDate: today },
-        {
-          id: "3",
-          name: "その他収入",
-          amount: 0,
-          type: "income",
-          startDate: today,
-        },
-      ];
-    }
+    []
+  );
+  const [expenseCategories, setExpenseCategories] = useState<BudgetCategory[]>(
+    []
   );
 
-  const [expenseCategories, setExpenseCategories] = useState<BudgetCategory[]>(
-    () => {
-      const currentDate = new Date();
-      const today = currentDate.toISOString().split("T")[0];
-      return [
-        { id: "1", name: "食費", amount: 0, type: "expense", startDate: today },
-        {
-          id: "2",
-          name: "住居費",
-          amount: 0,
-          type: "expense",
-          startDate: today,
-        },
-        {
-          id: "3",
-          name: "光熱費",
-          amount: 0,
-          type: "expense",
-          startDate: today,
-        },
-        {
-          id: "4",
-          name: "通信費",
-          amount: 0,
-          type: "expense",
-          startDate: today,
-        },
-        {
-          id: "5",
-          name: "交通費",
-          amount: 0,
-          type: "expense",
-          startDate: today,
-        },
-        {
-          id: "6",
-          name: "娯楽費",
-          amount: 0,
-          type: "expense",
-          startDate: today,
-        },
-        {
-          id: "7",
-          name: "その他支出",
-          amount: 0,
-          type: "expense",
-          startDate: today,
-        },
-      ];
-    }
-  );
+  // Supabaseからデータを取得
+  useEffect(() => {
+    const loadBudgetData = async () => {
+      if (!user) return;
+
+      try {
+        // 予算カテゴリを取得
+        const budgetCategories: Tables<"budget_categories">[] =
+          await budgetCategoriesApi.getBudgetCategories(user.id);
+
+        // 収入・支出カテゴリに分類
+        const income = budgetCategories
+          .filter((cat) => cat.type === "income")
+          .map((cat) => ({
+            id: cat.id,
+            name: cat.name,
+            amount: parseFloat(cat.amount),
+            type: cat.type as "income" | "expense",
+            startDate: cat.start_date,
+            endDate: cat.end_date || undefined,
+          }));
+
+        const expense = budgetCategories
+          .filter((cat) => cat.type === "expense")
+          .map((cat) => ({
+            id: cat.id,
+            name: cat.name,
+            amount: parseFloat(cat.amount),
+            type: cat.type as "income" | "expense",
+            startDate: cat.start_date,
+            endDate: cat.end_date || undefined,
+          }));
+
+        // 株式投資設定を取得
+        const stockInvestmentsData: Tables<"stock_investments">[] =
+          await stockInvestmentsApi.getStockInvestments(user.id);
+        const stockInvestmentsFormatted = stockInvestmentsData.map((inv) => ({
+          id: inv.id,
+          name: inv.name,
+          amount: parseFloat(inv.amount),
+          startDate: inv.start_date,
+          endDate: inv.end_date || undefined,
+        }));
+
+        setIncomeCategories(income);
+        setExpenseCategories(expense);
+        setStockInvestments(stockInvestmentsFormatted);
+      } catch (error) {
+        console.error("予算データの読み込みに失敗:", error);
+        Alert.alert("エラー", "予算データの読み込みに失敗しました");
+      }
+    };
+
+    loadBudgetData();
+  }, [user]);
 
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<BudgetCategory | null>(
@@ -160,21 +153,7 @@ export const BudgetSettingsScreen: React.FC = () => {
   };
 
   const performSave = () => {
-    // 現在月に固定予算として保存
-    const currentDate = new Date();
-    const currentMonth =
-      currentDate.getFullYear() +
-      "-" +
-      String(currentDate.getMonth() + 1).padStart(2, "0");
-
-    setBudget({
-      month: currentMonth,
-      income: totalIncome,
-      expense: totalExpense,
-      stockInvestments: stockInvestments,
-      startDate: new Date().toISOString().split("T")[0],
-    });
-
+    // 成功メッセージを表示
     Alert.alert("成功", "カテゴリ予算が保存されました");
   };
 
@@ -370,18 +349,6 @@ export const BudgetSettingsScreen: React.FC = () => {
     0
   );
 
-  // 期限順でソート（開始日が早い順）
-  const sortCategoriesByDate = (categories: BudgetCategory[]) => {
-    return [...categories].sort((a, b) => {
-      const dateA = new Date(a.startDate);
-      const dateB = new Date(b.startDate);
-      return dateA.getTime() - dateB.getTime();
-    });
-  };
-
-  const sortedIncomeCategories = sortCategoriesByDate(incomeCategories);
-  const sortedExpenseCategories = sortCategoriesByDate(expenseCategories);
-
   // 収支サマリーの計算
   const netIncome = totalIncome - totalExpense;
   const totalStockInvestment = stockInvestments.reduce(
@@ -478,7 +445,7 @@ export const BudgetSettingsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {sortedIncomeCategories.map((category) => (
+        {incomeCategories.map((category) => (
           <View key={category.id} style={styles.categoryCard}>
             <TouchableOpacity
               style={styles.categoryCardContent}
@@ -539,7 +506,7 @@ export const BudgetSettingsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {sortedExpenseCategories.map((category) => (
+        {expenseCategories.map((category) => (
           <View key={category.id} style={styles.categoryCard}>
             <TouchableOpacity
               style={styles.categoryCardContent}

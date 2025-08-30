@@ -12,7 +12,11 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { OnboardingData } from "../types";
-import { formatCurrency } from "../utils/calculations";
+import {
+  budgetCategoriesApi,
+  stockInvestmentsApi,
+} from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
 
 interface OnboardingScreenProps {
   onComplete: (data: OnboardingData) => void;
@@ -23,6 +27,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [data, setData] = useState<Partial<OnboardingData>>({});
+  const { user } = useAuth();
 
   // ステップ1: 名前・生年月日
   const [name, setName] = useState("");
@@ -68,7 +73,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     return `${year}年${month}月${day}日`;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep === 1) {
       if (!name) {
         Alert.alert("エラー", "名前を入力してください");
@@ -119,6 +124,10 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
         targetAge: parseInt(targetAge),
         targetAmount: parseInt(targetAmount),
       };
+
+      // オンボーディング完了時に予算データを自動登録
+      await registerBudgetFromOnboarding(finalData);
+
       onComplete(finalData);
     }
   };
@@ -134,6 +143,56 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
       return `${Math.round(amount / 10000)}万円`;
     }
     return `${Math.round(amount)}円`;
+  };
+
+  // オンボーディング完了時に予算データを自動登録
+  const registerBudgetFromOnboarding = async (
+    onboardingData: OnboardingData
+  ) => {
+    if (!user) {
+      console.error("ユーザーがログインしていません");
+      return;
+    }
+
+    const today = new Date();
+    const todayString = today.toISOString().split("T")[0]; // YYYY-MM-DD format
+
+    try {
+      // 収入カテゴリを作成
+      await budgetCategoriesApi.createBudgetCategory({
+        user_id: user.id,
+        name: "収入",
+        amount: onboardingData.monthlyIncome.toString(),
+        type: "income",
+        start_date: todayString,
+        end_date: null, // 無期限
+      });
+
+      // 支出カテゴリを作成
+      await budgetCategoriesApi.createBudgetCategory({
+        user_id: user.id,
+        name: "支出",
+        amount: onboardingData.monthlyExpense.toString(),
+        type: "expense",
+        start_date: todayString,
+        end_date: null, // 無期限
+      });
+
+      // 株式投資設定を作成（月次積立額が0より大きい場合のみ）
+      if (onboardingData.monthlyStockInvestment > 0) {
+        await stockInvestmentsApi.createStockInvestment({
+          user_id: user.id,
+          name: "月次積立",
+          amount: onboardingData.monthlyStockInvestment.toString(),
+          start_date: todayString,
+          end_date: null, // 無期限
+        });
+      }
+
+      console.log("オンボーディング予算データの登録が完了しました");
+    } catch (error) {
+      console.error("オンボーディング予算データの登録に失敗:", error);
+    }
   };
 
   const renderStep1 = () => {

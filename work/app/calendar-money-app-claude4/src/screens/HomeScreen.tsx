@@ -11,27 +11,32 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { AssetCalendar } from "../components/AssetCalendar";
 import { useAssets } from "../contexts/AssetContext";
-import { useSettings } from "../contexts/SettingsContext";
 import {
   calculatePeakAssetInfo,
   formatCurrency,
   PeakAssetInfo,
 } from "../utils/calculations";
 import { OnboardingData } from "../types";
+import { usersApi } from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
+import { Tables } from "../lib/supabase";
 
 export const HomeScreen: React.FC = () => {
+  const { user } = useAuth();
   const [showTooltip, setShowTooltip] = useState(true);
   const [peakAssetInfo, setPeakAssetInfo] = useState<PeakAssetInfo | null>(
     null
   );
   const [userAge, setUserAge] = useState<number | null>(null);
+  const [targetAge, setTargetAge] = useState(65);
+  const [targetAmount, setTargetAmount] = useState(50000000);
   const { calendarData } = useAssets();
-  const { targetAge, targetAmount } = useSettings();
 
   useEffect(() => {
     checkFirstTime();
     loadUserData();
-  }, []);
+    loadTargetSettings();
+  }, [user]);
 
   useEffect(() => {
     if (calendarData && Object.keys(calendarData).length > 0) {
@@ -81,6 +86,26 @@ export const HomeScreen: React.FC = () => {
       }
     } catch (error) {
       console.log("Error loading user data:", error);
+    }
+  };
+
+  // Supabaseから目標設定を取得
+  const loadTargetSettings = async () => {
+    if (!user) return;
+
+    try {
+      const userData: Tables<"users"> = await usersApi.getUser(user.id);
+
+      if (userData.target_age) {
+        setTargetAge(userData.target_age);
+      }
+
+      if (userData.target_amount) {
+        const amount = parseInt(userData.target_amount);
+        setTargetAmount(amount);
+      }
+    } catch (error) {
+      console.error("目標設定の読み込みに失敗:", error);
     }
   };
 

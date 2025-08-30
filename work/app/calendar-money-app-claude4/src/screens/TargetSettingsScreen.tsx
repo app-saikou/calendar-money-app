@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,15 +9,47 @@ import {
   Alert,
 } from "react-native";
 
-import { useSettings } from "../contexts/SettingsContext";
 import { formatCurrency } from "../utils/calculations";
 import { Icon, ICONS } from "../components/Icon";
+import { usersApi } from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
 
 export const TargetSettingsScreen: React.FC = () => {
-  const { targetAge, setTargetAge, targetAmount, setTargetAmount } =
-    useSettings();
-  const [ageInput, setAgeInput] = useState(targetAge.toString());
-  const [amountInput, setAmountInput] = useState(targetAmount.toString());
+  const { user } = useAuth();
+  const [targetAge, setTargetAge] = useState(65);
+  const [targetAmount, setTargetAmount] = useState(50000000);
+  const [ageInput, setAgeInput] = useState("65");
+  const [amountInput, setAmountInput] = useState("50000000");
+  const [loading, setLoading] = useState(true);
+
+  // Supabaseから目標設定を取得
+  useEffect(() => {
+    const loadTargetSettings = async () => {
+      if (!user) return;
+
+      try {
+        setLoading(true);
+        const userData = await usersApi.getUser(user.id);
+
+        if (userData.target_age) {
+          setTargetAge(userData.target_age);
+          setAgeInput(userData.target_age.toString());
+        }
+
+        if (userData.target_amount) {
+          const amount = parseInt(userData.target_amount);
+          setTargetAmount(amount);
+          setAmountInput(userData.target_amount);
+        }
+      } catch (error) {
+        console.error("目標設定の読み込みに失敗:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTargetSettings();
+  }, [user]);
 
   const handleSaveAge = async () => {
     const age = parseInt(ageInput, 10);
@@ -34,9 +66,11 @@ export const TargetSettingsScreen: React.FC = () => {
     }
 
     try {
-      await setTargetAge(age);
+      await usersApi.updateUser(user!.id, { target_age: age });
+      setTargetAge(age);
       Alert.alert("成功", "目標年齢が保存されました");
     } catch (error) {
+      console.error("目標年齢の保存に失敗:", error);
       Alert.alert("エラー", "保存に失敗しました");
     }
   };
@@ -55,9 +89,11 @@ export const TargetSettingsScreen: React.FC = () => {
     }
 
     try {
-      await setTargetAmount(amount);
+      await usersApi.updateUser(user!.id, { target_amount: amount.toString() });
+      setTargetAmount(amount);
       Alert.alert("成功", "目標資産額が保存されました");
     } catch (error) {
+      console.error("目標資産額の保存に失敗:", error);
       Alert.alert("エラー", "保存に失敗しました");
     }
   };

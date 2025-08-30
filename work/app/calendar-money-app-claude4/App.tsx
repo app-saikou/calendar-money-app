@@ -8,6 +8,10 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { AssetProvider } from "./src/contexts/AssetContext";
 import { SettingsProvider } from "./src/contexts/SettingsContext";
+import {
+  OnboardingProvider,
+  useOnboarding,
+} from "./src/contexts/OnboardingContext";
 import { useAuth } from "./src/hooks/useAuth";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { AssetManagementScreen } from "./src/screens/AssetManagementScreen";
@@ -17,6 +21,7 @@ import { BudgetSettingsScreen } from "./src/screens/BudgetSettingsScreen";
 import { TargetSettingsScreen } from "./src/screens/TargetSettingsScreen";
 import { TransactionScreen } from "./src/screens/TransactionScreen";
 import { AuthScreen } from "./src/screens/AuthScreen";
+import { OnboardingScreen } from "./src/screens/OnboardingScreen";
 
 const Tab = createBottomTabNavigator();
 const SettingsStack = createNativeStackNavigator();
@@ -70,6 +75,7 @@ const SettingsStackScreen: React.FC = () => {
 // メインアプリコンポーネント（認証状態に基づいて表示を切り替え）
 const MainApp: React.FC = () => {
   const { user, loading } = useAuth();
+  const { isOnboardingCompleted, completeOnboarding } = useOnboarding();
 
   if (loading) {
     return (
@@ -85,7 +91,12 @@ const MainApp: React.FC = () => {
     return <AuthScreen />;
   }
 
-  // ログイン済みの場合
+  // ログイン済みだがオンボーディング未完了の場合
+  if (!isOnboardingCompleted) {
+    return <OnboardingScreen onComplete={completeOnboarding} />;
+  }
+
+  // ログイン済みでオンボーディング完了の場合
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -189,7 +200,9 @@ export default function App() {
       <StatusBar style="light" />
       <AssetProvider>
         <SettingsProvider>
-          <MainApp />
+          <OnboardingProvider>
+            <MainApp />
+          </OnboardingProvider>
         </SettingsProvider>
       </AssetProvider>
     </>
