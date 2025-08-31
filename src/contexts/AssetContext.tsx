@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Asset, Transaction, MonthlyBudget, CalendarDayData } from "../types";
 import { calculateAssetProjection } from "../utils/calculations";
+import { calendarCacheApi } from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
 
 interface AssetContextType {
   assets: Asset[];
@@ -43,6 +45,7 @@ export const useAssets = () => {
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<MonthlyBudget[]>([]);
@@ -92,7 +95,15 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
           month: currentMonth,
           income: data.monthlyIncome,
           expense: data.monthlyExpense,
-          stockInvestment: data.monthlyStockInvestment,
+          stockInvestments: [
+            {
+              id: "1",
+              name: "月次積立",
+              amount: data.monthlyStockInvestment,
+              startDate: new Date().toISOString().split("T")[0],
+            },
+          ],
+          startDate: new Date().toISOString().split("T")[0],
         };
         setBudgets([initialBudget]);
       } else {
@@ -280,7 +291,21 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
       .reduce((total, asset) => total + asset.amount, 0);
   };
 
-  const refreshCalendarData = () => {
+  const refreshCalendarData = async () => {
+    // ユーザーの年齢を取得して100歳までの期間を計算
+    try {
+      const onboardingData = await AsyncStorage.getItem("onboardingData");
+      if (onboardingData) {
+        const userData = JSON.parse(onboardingData);
+        const userAge = userData.age || 25;
+        const targetAge = 100;
+        const yearsToTarget = targetAge - userAge;
+        console.log(`Calculating projection for ${yearsToTarget} years until age ${targetAge}`);
+      }
+    } catch (error) {
+      console.log("Using default projection period");
+    }
+
     const projectionData = calculateAssetProjection(
       assets,
       budgets,
@@ -289,10 +314,48 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
     setCalendarData(projectionData);
   };
 
+  // 100歳までの資産推移データをSupabaseに保存
+  const saveCalendarDataToSupabase = async () => {
+    try {
+      if (!user) return;
+
+      // ユーザーの年齢を取得
+      const onboardingData = await AsyncStorage.getItem("onboardingData");
+      if (!onboardingData) return;
+      
+      // 資産推移データを計算
+      const projectionData = calculateAssetProjection(
+        assets,
+        budgets,
+        transactions
+      );
+
+      // Supabaseに保存するデータを準備
+      const calendarCacheData = Object.entries(projectionData).map(([date, data]) => ({
+        user_id: user.id,
+        date: date,
+        cash_amount: data.cashAmount.toString(),
+        stock_amount: data.stockAmount.toString(),
+        total_amount: data.totalAssets.toString(),
+      }));
+
+      // バッチでSupabaseに保存
+      for (const cacheData of calendarCacheData) {
+        await calendarCacheApi.upsertCalendarCache(cacheData);
+      }
+
+      console.log(`Calendar data saved to Supabase for ${calendarCacheData.length} days`);
+    } catch (error) {
+      console.error("Error saving calendar data to Supabase:", error);
+    }
+  };
+
   // Refresh calendar data when dependencies change
   useEffect(() => {
     if (isInitialized) {
       refreshCalendarData();
+      // 資産推移データをSupabaseに保存
+      saveCalendarDataToSupabase();
     }
   }, [assets, budgets, transactions, isInitialized]);
 

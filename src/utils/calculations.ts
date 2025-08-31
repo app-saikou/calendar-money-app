@@ -175,10 +175,49 @@ export const calculateAssetProjection = (
 ): Record<string, CalendarDayData> => {
   const result: Record<string, CalendarDayData> = {};
   const today = new Date();
+  
+  // ユーザーの年齢を取得して100歳までの期間を計算
+  let endDate = new Date(today.getFullYear() + 2, today.getMonth(), 0); // デフォルト2年後
+  
+  try {
+    // AsyncStorageからユーザーの年齢を取得（非同期処理のため、デフォルト値を使用）
+    const userAge = 25; // デフォルト年齢
+    const targetAge = 100;
+    const yearsToTarget = targetAge - userAge;
+    endDate = new Date(today.getFullYear() + yearsToTarget, today.getMonth(), 0);
+  } catch (error) {
+    console.log("Using default end date (2 years from now)");
+  }
+  
   const startDate = new Date(today.getFullYear(), today.getMonth() - 6, 1); // 6か月前から
-  const endDate = new Date(today.getFullYear() + 2, today.getMonth(), 0); // 2年後まで
-
   const currentDate = new Date(startDate);
+
+  // 固定予算として最初の予算を使用（毎月同じ予算を適用）
+  const fixedBudget = budgets.length > 0 ? budgets[0] : null;
+  const monthlyStockInvestment = fixedBudget && fixedBudget.stockInvestments.length > 0 
+    ? fixedBudget.stockInvestments[0].amount 
+    : 0;
+  const monthlyNetCash = fixedBudget
+    ? fixedBudget.income - fixedBudget.expense
+    : 0;
+
+  // 今日の資産状況を起点とする
+  const baseAssets = applyTransactionsToAssets(
+    assets,
+    transactions,
+    formatDate(today)
+  );
+
+  // 初期資産額（今日時点）
+  let currentCashAmount =
+    baseAssets.find((a) => a.type === "cash")?.amount || 0;
+  let currentStockAmount =
+    baseAssets.find((a) => a.type === "stock")?.amount || 0;
+  const stockAnnualReturn =
+    baseAssets.find((a) => a.type === "stock")?.annualReturn || 0;
+
+  // 日利を計算
+  const dailyRate = stockAnnualReturn / 365;
 
   while (currentDate <= endDate) {
     const dateString = formatDate(currentDate);
@@ -186,88 +225,65 @@ export const calculateAssetProjection = (
     const isToday = formatDate(currentDate) === formatDate(today);
 
     let dayAssets: Asset[];
+    let totalAssets: number;
+    let cashAmount: number;
+    let stockAmount: number;
 
     if (!isPrediction) {
       // 過去・現在の場合、実際の取引を適用
       dayAssets = applyTransactionsToAssets(assets, transactions, dateString);
+      totalAssets = dayAssets.reduce((sum, asset) => sum + asset.amount, 0);
+      cashAmount = dayAssets
+        .filter((asset) => asset.type === "cash")
+        .reduce((sum, asset) => sum + asset.amount, 0);
+      stockAmount = dayAssets
+        .filter((asset) => asset.type === "stock")
+        .reduce((sum, asset) => sum + asset.amount, 0);
     } else {
       // 未来の場合、固定予算と年利を考慮して計算
-      // 固定予算として最初の予算を使用（毎月同じ予算を適用）
-      const fixedBudget = budgets.length > 0 ? budgets[0] : null;
-
-      // 今日の資産状況を起点とする
-      const baseAssets = applyTransactionsToAssets(
-        assets,
-        transactions,
-        formatDate(today)
-      );
-
-      // 月初の判定
       const isMonthStart = currentDate.getDate() === 1;
-
-      // 初期資産額
-      let cashAmount = baseAssets.find((a) => a.type === "cash")?.amount || 0;
-      let stockAmount = baseAssets.find((a) => a.type === "stock")?.amount || 0;
-
-      const monthlyStockInvestment = fixedBudget
-        ? fixedBudget.stockInvestment
-        : 0;
-      const monthlyNetCash = fixedBudget
-        ? fixedBudget.income - fixedBudget.expense
-        : 0;
 
       // 月初の処理
       if (isMonthStart) {
         // 1. 毎月の収支（収入−支出）を月初に現金に加算
-        cashAmount += monthlyNetCash;
+        currentCashAmount += monthlyNetCash;
 
         // 2. 毎月の積立額を月初に現金から株式へ移動
         if (monthlyStockInvestment > 0) {
-          cashAmount -= monthlyStockInvestment;
-          stockAmount += monthlyStockInvestment;
+          currentCashAmount -= monthlyStockInvestment;
+          currentStockAmount += monthlyStockInvestment;
         }
       }
 
       // 3. 株式資産は年利を365日で割った日利を使って、日ごとに複利で成長させる
-      if (stockAmount > 0) {
-        const stockAsset = baseAssets.find((a) => a.type === "stock");
-        if (stockAsset && stockAsset.annualReturn) {
-          // 年利を日利に変換
-          const dailyRate = stockAsset.annualReturn / 365;
-
-          // その日の複利計算
-          stockAmount = stockAmount * (1 + dailyRate);
-        }
+      if (currentStockAmount > 0 && dailyRate > 0) {
+        currentStockAmount = currentStockAmount * (1 + dailyRate);
       }
 
+      // その日の資産状況を設定
       dayAssets = baseAssets.map((asset) => {
         if (asset.type === "cash") {
           return {
             ...asset,
-            amount: cashAmount,
+            amount: currentCashAmount,
           };
         } else if (asset.type === "stock") {
           return {
             ...asset,
-            amount: stockAmount,
+            amount: currentStockAmount,
           };
         }
         return asset;
       });
-    }
 
-    const totalAssets = dayAssets.reduce((sum, asset) => sum + asset.amount, 0);
-    const cashAmount = dayAssets
-      .filter((asset) => asset.type === "cash")
-      .reduce((sum, asset) => sum + asset.amount, 0);
-    const stockAmount = dayAssets
-      .filter((asset) => asset.type === "stock")
-      .reduce((sum, asset) => sum + asset.amount, 0);
+      totalAssets = currentCashAmount + currentStockAmount;
+      cashAmount = currentCashAmount;
+      stockAmount = currentStockAmount;
+    }
 
     // デバッグ: 月初の計算を確認
     const isMonthStart = currentDate.getDate() === 1;
-
-    if (isMonthStart) {
+    if (isMonthStart && isPrediction) {
       console.log(
         `Debug: ${dateString} - Cash: ${cashAmount}, Stock: ${stockAmount}, Total: ${totalAssets}`
       );
