@@ -19,13 +19,14 @@ export interface PeakAssetInfo {
  */
 export const formatCurrency = (amount: number): string => {
   if (amount >= 100000000) {
-    // 1億円以上
-    return `${Math.round(amount / 100000000)}億円`;
+    // 1億円以上: 小数点1桁まで表示（例: 1.2億円）
+    const billionAmount = amount / 100000000;
+    return `${billionAmount.toFixed(1)}億円`;
   } else if (amount >= 10000) {
-    // 1万円以上
+    // 1万円以上: 万円単位で表示
     return `${Math.round(amount / 10000)}万円`;
   } else if (amount >= 1000) {
-    // 1000円以上
+    // 1000円以上: 千円単位で表示
     return `${Math.round(amount / 1000)}千円`;
   } else {
     return `${Math.round(amount)}円`;
@@ -175,28 +176,33 @@ export const calculateAssetProjection = (
 ): Record<string, CalendarDayData> => {
   const result: Record<string, CalendarDayData> = {};
   const today = new Date();
-  
+
   // ユーザーの年齢を取得して100歳までの期間を計算
   let endDate = new Date(today.getFullYear() + 2, today.getMonth(), 0); // デフォルト2年後
-  
+
   try {
     // AsyncStorageからユーザーの年齢を取得（非同期処理のため、デフォルト値を使用）
     const userAge = 25; // デフォルト年齢
     const targetAge = 100;
     const yearsToTarget = targetAge - userAge;
-    endDate = new Date(today.getFullYear() + yearsToTarget, today.getMonth(), 0);
+    endDate = new Date(
+      today.getFullYear() + yearsToTarget,
+      today.getMonth(),
+      0
+    );
   } catch (error) {
     console.log("Using default end date (2 years from now)");
   }
-  
+
   const startDate = new Date(today.getFullYear(), today.getMonth() - 6, 1); // 6か月前から
   const currentDate = new Date(startDate);
 
   // 固定予算として最初の予算を使用（毎月同じ予算を適用）
   const fixedBudget = budgets.length > 0 ? budgets[0] : null;
-  const monthlyStockInvestment = fixedBudget && fixedBudget.stockInvestments.length > 0 
-    ? fixedBudget.stockInvestments[0].amount 
-    : 0;
+  const monthlyStockInvestment =
+    fixedBudget && fixedBudget.stockInvestments.length > 0
+      ? fixedBudget.stockInvestments[0].amount
+      : 0;
   const monthlyNetCash = fixedBudget
     ? fixedBudget.income - fixedBudget.expense
     : 0;

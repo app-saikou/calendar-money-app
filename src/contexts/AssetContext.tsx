@@ -300,7 +300,9 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
         const userAge = userData.age || 25;
         const targetAge = 100;
         const yearsToTarget = targetAge - userAge;
-        console.log(`Calculating projection for ${yearsToTarget} years until age ${targetAge}`);
+        console.log(
+          `Calculating projection for ${yearsToTarget} years until age ${targetAge}`
+        );
       }
     } catch (error) {
       console.log("Using default projection period");
@@ -317,34 +319,60 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
   // 100歳までの資産推移データをSupabaseに保存
   const saveCalendarDataToSupabase = async () => {
     try {
-      if (!user) return;
+      if (!user) {
+        console.log("User not authenticated, skipping calendar data save");
+        return;
+      }
 
       // ユーザーの年齢を取得
       const onboardingData = await AsyncStorage.getItem("onboardingData");
-      if (!onboardingData) return;
-      
-      // 資産推移データを計算
+      if (!onboardingData) {
+        console.log("No onboarding data found, skipping calendar data save");
+        return;
+      }
+
+      // 最新の資産推移データを計算
       const projectionData = calculateAssetProjection(
         assets,
         budgets,
         transactions
       );
 
+      console.log(
+        `Calculating projection data for ${
+          Object.keys(projectionData).length
+        } days`
+      );
+
       // Supabaseに保存するデータを準備
-      const calendarCacheData = Object.entries(projectionData).map(([date, data]) => ({
-        user_id: user.id,
-        date: date,
-        cash_amount: data.cashAmount.toString(),
-        stock_amount: data.stockAmount.toString(),
-        total_amount: data.totalAssets.toString(),
-      }));
+      const calendarCacheData = Object.entries(projectionData).map(
+        ([date, data]) => ({
+          user_id: user.id,
+          date: date,
+          cash_amount: data.cashAmount.toString(),
+          stock_amount: data.stockAmount.toString(),
+          total_amount: data.totalAssets.toString(),
+        })
+      );
+
+      console.log(
+        `Prepared ${calendarCacheData.length} days of calendar data for Supabase`
+      );
 
       // バッチでSupabaseに保存
+      let savedCount = 0;
       for (const cacheData of calendarCacheData) {
-        await calendarCacheApi.upsertCalendarCache(cacheData);
+        try {
+          await calendarCacheApi.upsertCalendarCache(cacheData);
+          savedCount++;
+        } catch (error) {
+          console.error(`Error saving data for date ${cacheData.date}:`, error);
+        }
       }
 
-      console.log(`Calendar data saved to Supabase for ${calendarCacheData.length} days`);
+      console.log(
+        `Successfully saved ${savedCount}/${calendarCacheData.length} days to Supabase`
+      );
     } catch (error) {
       console.error("Error saving calendar data to Supabase:", error);
     }
@@ -353,9 +381,13 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
   // Refresh calendar data when dependencies change
   useEffect(() => {
     if (isInitialized) {
-      refreshCalendarData();
-      // 資産推移データをSupabaseに保存
-      saveCalendarDataToSupabase();
+      const initializeCalendar = async () => {
+        await refreshCalendarData();
+        // 資産推移データをSupabaseに保存
+        await saveCalendarDataToSupabase();
+      };
+
+      initializeCalendar();
     }
   }, [assets, budgets, transactions, isInitialized]);
 
