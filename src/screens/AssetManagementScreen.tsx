@@ -13,7 +13,7 @@ import {
 import { useAssets } from "../contexts/AssetContext";
 import { Asset } from "../types";
 import { formatCurrency } from "../utils/calculations";
-import { Icon, ICONS } from "../components/Icon";
+import { Icon, ICONS, ICON_COLORS, ICON_SIZES } from "../components/Icon";
 
 export const AssetManagementScreen: React.FC = () => {
   const {
@@ -187,7 +187,7 @@ export const AssetManagementScreen: React.FC = () => {
             style={styles.addButton}
             onPress={() => openModal()}
           >
-            <Text style={styles.addButtonIcon}>➕</Text>
+            <Icon name={ICONS.ADD} size={ICON_SIZES.large} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -211,10 +211,14 @@ export const AssetManagementScreen: React.FC = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {editingAsset ? "資産を編集" : "新しい資産を追加"}
+                {editingAsset ? "資産を編集" : "資産を追加"}
               </Text>
-              <TouchableOpacity onPress={closeModal}>
-                <Text style={styles.closeButtonIcon}>❌</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
+                <Icon
+                  name={ICONS.CLOSE}
+                  size={ICON_SIZES.medium}
+                  color={ICON_COLORS.danger}
+                />
               </TouchableOpacity>
             </View>
 
@@ -536,8 +540,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: "#fff",
   },
-  closeButtonIcon: {
-    fontSize: 24,
-    color: "#666",
+  closeButton: {
+    padding: 5,
   },
 });

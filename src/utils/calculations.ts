@@ -287,14 +287,6 @@ export const calculateAssetProjection = (
       stockAmount = currentStockAmount;
     }
 
-    // デバッグ: 月初の計算を確認
-    const isMonthStart = currentDate.getDate() === 1;
-    if (isMonthStart && isPrediction) {
-      console.log(
-        `Debug: ${dateString} - Cash: ${cashAmount}, Stock: ${stockAmount}, Total: ${totalAssets}`
-      );
-    }
-
     result[dateString] = {
       date: dateString,
       totalAssets,
@@ -319,12 +311,6 @@ export const calculatePeakAssetInfo = (
   targetAge?: number,
   targetAmount?: number
 ): PeakAssetInfo => {
-  console.log("Debug: calculatePeakAssetInfo called with:", {
-    userAge,
-    targetAge,
-    targetAmount,
-    calendarDataKeys: Object.keys(calendarData).length,
-  });
   const today = new Date();
   let peakAmount = 0;
   let peakDate = "";
@@ -377,9 +363,6 @@ export const calculatePeakAssetInfo = (
 
     if (closestDate && calendarData[closestDate]) {
       assetAtTargetAge = calendarData[closestDate].totalAssets;
-      console.log(
-        `Debug: Found target age asset at ${closestDate}: ${assetAtTargetAge}`
-      );
     } else {
       console.log(`Debug: No calendar data found for target age ${targetAge}`);
     }

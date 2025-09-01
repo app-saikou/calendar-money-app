@@ -225,8 +225,9 @@ export const HomeScreen: React.FC = () => {
             style={styles.tooltipContainer}
             onPress={hideTooltip}
           >
+            <Icon name={ICONS.HELP} size={16} color="#1976D2" />
             <Text style={styles.tooltipText}>
-              💡 日付をタップして詳細を確認できます
+              日付をタップして詳細を確認できます
             </Text>
             <Text style={styles.tooltipClose}>✕</Text>
           </TouchableOpacity>
@@ -521,6 +522,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#1976D2",
     fontWeight: "500",
+    marginLeft: 8,
   },
   tooltipClose: {
     fontSize: 16,

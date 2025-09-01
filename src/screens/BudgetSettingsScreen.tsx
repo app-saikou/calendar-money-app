@@ -12,7 +12,7 @@ import {
 
 import { formatCurrency } from "../utils/calculations";
 import { StockInvestment } from "../types";
-import { Icon, ICONS } from "../components/Icon";
+import { Icon, ICONS, ICON_COLORS, ICON_SIZES } from "../components/Icon";
 import {
   budgetCategoriesApi,
   stockInvestmentsApi,
@@ -155,11 +155,6 @@ export const BudgetSettingsScreen: React.FC = () => {
   const performSave = () => {
     // 成功メッセージを表示
     Alert.alert("成功", "カテゴリ予算が保存されました");
-  };
-
-  const formatAmount = (amount: string): string => {
-    const num = parseFloat(amount) || 0;
-    return formatCurrency(num);
   };
 
   // カテゴリ管理関数
@@ -392,13 +387,21 @@ export const BudgetSettingsScreen: React.FC = () => {
                     style={styles.actionButton}
                     onPress={() => openStockInvestmentModal(investment)}
                   >
-                    <Text style={styles.actionButtonText}>✏️</Text>
+                    <Icon
+                      name={ICONS.EDIT}
+                      size={ICON_SIZES.small}
+                      color={ICON_COLORS.primary}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => deleteStockInvestment(investment)}
                   >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
+                    <Icon
+                      name={ICONS.DELETE}
+                      size={ICON_SIZES.small}
+                      color={ICON_COLORS.danger}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -458,13 +461,21 @@ export const BudgetSettingsScreen: React.FC = () => {
                     style={styles.actionButton}
                     onPress={() => openCategoryModal(category)}
                   >
-                    <Text style={styles.actionButtonText}>✏️</Text>
+                    <Icon
+                      name={ICONS.EDIT}
+                      size={ICON_SIZES.small}
+                      color={ICON_COLORS.primary}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => deleteCategory(category)}
                   >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
+                    <Icon
+                      name={ICONS.DELETE}
+                      size={ICON_SIZES.small}
+                      color={ICON_COLORS.danger}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -519,13 +530,21 @@ export const BudgetSettingsScreen: React.FC = () => {
                     style={styles.actionButton}
                     onPress={() => openCategoryModal(category)}
                   >
-                    <Text style={styles.actionButtonText}>✏️</Text>
+                    <Icon
+                      name={ICONS.EDIT}
+                      size={ICON_SIZES.small}
+                      color={ICON_COLORS.primary}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => deleteCategory(category)}
                   >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
+                    <Icon
+                      name={ICONS.DELETE}
+                      size={ICON_SIZES.small}
+                      color={ICON_COLORS.danger}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>

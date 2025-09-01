@@ -3,22 +3,24 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
+  Modal,
+  TextInput,
   Alert,
   FlatList,
-  Modal,
 } from "react-native";
-
+import { Icon, ICONS, ICON_COLORS, ICON_SIZES } from "../components/Icon";
 import { useAssets } from "../contexts/AssetContext";
 import { Transaction } from "../types";
 import { formatCurrency } from "../utils/calculations";
-import { Icon, ICONS } from "../components/Icon";
 
 export const TransactionScreen: React.FC = () => {
   const { addTransaction, transactions, deleteTransaction, assets } =
     useAssets();
+  const sortedTransactions = transactions.sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
 
   const [formData, setFormData] = useState({
     amount: "",
@@ -31,7 +33,7 @@ export const TransactionScreen: React.FC = () => {
 
   const [showHistory, setShowHistory] = useState(false);
   const [showAssetPicker, setShowAssetPicker] = useState(false);
-  const [pickerType, setPickerType] = useState<"from" | "to">("to");
+  const [pickerType, setPickerType] = useState<"from" | "to">("from");
 
   const resetForm = () => {
     setFormData({
@@ -127,9 +129,6 @@ export const TransactionScreen: React.FC = () => {
   };
 
   const renderAssetSelection = () => {
-    const cashAssets = assets.filter((asset) => asset.type === "cash");
-    const stockAssets = assets.filter((asset) => asset.type === "stock");
-
     const getSelectedAssetName = (assetId: string) => {
       const asset = assets.find((a) => a.id === assetId);
       return asset
@@ -140,19 +139,6 @@ export const TransactionScreen: React.FC = () => {
     const openAssetPicker = (type: "from" | "to") => {
       setPickerType(type);
       setShowAssetPicker(true);
-    };
-
-    const getAvailableAssets = () => {
-      switch (formData.type) {
-        case "income":
-          return cashAssets;
-        case "expense":
-          return cashAssets;
-        case "stock_investment":
-          return pickerType === "from" ? cashAssets : stockAssets;
-        default:
-          return [];
-      }
     };
 
     switch (formData.type) {
@@ -233,10 +219,6 @@ export const TransactionScreen: React.FC = () => {
         return null;
     }
   };
-
-  const sortedTransactions = [...transactions].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
 
   const renderTransactionItem = ({ item }: { item: Transaction }) => {
     const icon = getTransactionIcon(item.type);
@@ -497,8 +479,12 @@ export const TransactionScreen: React.FC = () => {
 
           {/* 保存ボタン */}
           <TouchableOpacity style={styles.saveButton} onPress={saveTransaction}>
-            <Text style={styles.saveButtonIcon}>➕</Text>
-            <Text style={styles.saveButtonText}>取引を記録</Text>
+            <Icon
+              name={ICONS.SAVE}
+              size={ICON_SIZES.medium}
+              color={ICON_COLORS.success}
+            />
+            <Text style={styles.saveButtonText}>保存</Text>
           </TouchableOpacity>
         </View>
 

@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
+  TextInput,
   Alert,
 } from "react-native";
-
+import { Icon, ICONS, ICON_COLORS, ICON_SIZES } from "../components/Icon";
 import { useAssets } from "../contexts/AssetContext";
 import { formatCurrency } from "../utils/calculations";
 
@@ -26,21 +26,22 @@ export const BudgetSettingsScreen: React.FC = () => {
     return {
       income: existingBudget?.income?.toString() || "",
       expense: existingBudget?.expense?.toString() || "",
-      stockInvestment: existingBudget?.stockInvestment?.toString() || "",
+      stockInvestments:
+        existingBudget?.stockInvestments?.[0]?.amount?.toString() || "",
     };
   });
 
   const saveBudget = () => {
     const income = parseFloat(formData.income) || 0;
     const expense = parseFloat(formData.expense) || 0;
-    const stockInvestment = parseFloat(formData.stockInvestment) || 0;
+    const stockInvestments = parseFloat(formData.stockInvestments) || 0;
 
-    if (income < 0 || expense < 0 || stockInvestment < 0) {
+    if (income < 0 || expense < 0 || stockInvestments < 0) {
       Alert.alert("エラー", "負の値は入力できません");
       return;
     }
 
-    if (stockInvestment > income - expense) {
+    if (stockInvestments > income - expense) {
       Alert.alert(
         "警告",
         "株式投資額が収支差額を超えています。続行しますか？",
@@ -59,7 +60,15 @@ export const BudgetSettingsScreen: React.FC = () => {
                 month: currentMonth,
                 income,
                 expense,
-                stockInvestment,
+                stockInvestments: [
+                  {
+                    id: "1",
+                    name: "月次積立",
+                    amount: stockInvestments,
+                    startDate: new Date().toISOString().split("T")[0],
+                  },
+                ],
+                startDate: new Date().toISOString().split("T")[0],
               });
               Alert.alert("成功", "固定予算を保存しました");
             },
@@ -79,7 +88,15 @@ export const BudgetSettingsScreen: React.FC = () => {
       month: currentMonth,
       income,
       expense,
-      stockInvestment,
+      stockInvestments: [
+        {
+          id: "1",
+          name: "月次積立",
+          amount: stockInvestments,
+          startDate: new Date().toISOString().split("T")[0],
+        },
+      ],
+      startDate: new Date().toISOString().split("T")[0],
     });
 
     Alert.alert("成功", "固定予算を保存しました");
@@ -87,7 +104,8 @@ export const BudgetSettingsScreen: React.FC = () => {
 
   const netIncome =
     (parseFloat(formData.income) || 0) - (parseFloat(formData.expense) || 0);
-  const remainingCash = netIncome - (parseFloat(formData.stockInvestment) || 0);
+  const remainingCash =
+    netIncome - (parseFloat(formData.stockInvestments) || 0);
 
   return (
     <ScrollView style={styles.container}>
@@ -99,7 +117,14 @@ export const BudgetSettingsScreen: React.FC = () => {
 
         {/* 収入設定 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📈 月収入</Text>
+          <View style={styles.sectionHeader}>
+            <Icon
+              name={ICONS.INCOME}
+              size={ICON_SIZES.medium}
+              color={ICON_COLORS.success}
+            />
+            <Text style={styles.sectionTitle}>月収入</Text>
+          </View>
           <TextInput
             style={styles.input}
             value={formData.income}
@@ -116,7 +141,14 @@ export const BudgetSettingsScreen: React.FC = () => {
 
         {/* 支出設定 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📉 月支出</Text>
+          <View style={styles.sectionHeader}>
+            <Icon
+              name={ICONS.EXPENSE}
+              size={ICON_SIZES.medium}
+              color={ICON_COLORS.danger}
+            />
+            <Text style={styles.sectionTitle}>月支出</Text>
+          </View>
           <TextInput
             style={styles.input}
             value={formData.expense}
@@ -133,22 +165,29 @@ export const BudgetSettingsScreen: React.FC = () => {
 
         {/* 株式投資設定 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 月次株式投資額</Text>
+          <View style={styles.sectionHeader}>
+            <Icon
+              name={ICONS.STOCK}
+              size={ICON_SIZES.medium}
+              color={ICON_COLORS.primary}
+            />
+            <Text style={styles.sectionTitle}>月次株式投資額</Text>
+          </View>
           <Text style={styles.sectionDescription}>
             毎月積立投資する株式の金額を設定します
           </Text>
           <TextInput
             style={styles.input}
-            value={formData.stockInvestment}
+            value={formData.stockInvestments}
             onChangeText={(text) =>
-              setFormData({ ...formData, stockInvestment: text })
+              setFormData({ ...formData, stockInvestments: text })
             }
             placeholder="月の株式投資額を入力"
             keyboardType="numeric"
           />
-          {formData.stockInvestment && (
+          {formData.stockInvestments && (
             <Text style={styles.formattedAmount}>
-              {formatCurrency(parseFloat(formData.stockInvestment))}
+              {formatCurrency(parseFloat(formData.stockInvestments))}
             </Text>
           )}
         </View>
@@ -189,7 +228,7 @@ export const BudgetSettingsScreen: React.FC = () => {
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>📊 株式投資</Text>
             <Text style={[styles.summaryValue, { color: "#2196F3" }]}>
-              -{formatCurrency(parseFloat(formData.stockInvestment) || 0)}
+              -{formatCurrency(parseFloat(formData.stockInvestments) || 0)}
             </Text>
           </View>
 
@@ -255,11 +294,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 8,
+    marginLeft: 8,
   },
   sectionDescription: {
     fontSize: 12,
