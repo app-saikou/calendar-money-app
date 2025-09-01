@@ -61,7 +61,7 @@ export const AssetManagementScreen: React.FC = () => {
     setEditingAsset(null);
   };
 
-  const saveAsset = () => {
+  const saveAsset = async () => {
     if (!formData.name || !formData.amount) {
       Alert.alert("エラー", "名前と金額を入力してください");
       return;
@@ -92,22 +92,33 @@ export const AssetManagementScreen: React.FC = () => {
       ...(formData.type === "stock" && { annualReturn }),
     };
 
-    if (editingAsset) {
-      updateAsset(editingAsset.id, assetData);
-    } else {
-      addAsset(assetData);
+    try {
+      if (editingAsset) {
+        await updateAsset(editingAsset.id, assetData);
+      } else {
+        await addAsset(assetData);
+      }
+      closeModal();
+    } catch (error) {
+      console.error("Error saving asset:", error);
+      Alert.alert("エラー", "資産の保存に失敗しました");
     }
-
-    closeModal();
   };
 
-  const confirmDeleteAsset = (asset: Asset) => {
-    Alert.alert("削除確認", `「${asset.name}」を削除しますか？`, [
+  const handleDeleteAsset = async (asset: Asset) => {
+    Alert.alert("資産削除", `「${asset.name}」を削除しますか？`, [
       { text: "キャンセル", style: "cancel" },
       {
         text: "削除",
         style: "destructive",
-        onPress: () => deleteAsset(asset.id),
+        onPress: async () => {
+          try {
+            await deleteAsset(asset.id);
+          } catch (error) {
+            console.error("Error deleting asset:", error);
+            Alert.alert("エラー", "資産の削除に失敗しました");
+          }
+        },
       },
     ]);
   };
@@ -144,7 +155,7 @@ export const AssetManagementScreen: React.FC = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => confirmDeleteAsset(item)}
+          onPress={() => handleDeleteAsset(item)}
         >
           <Icon name={ICONS.DELETE} size={18} color="#F44336" />
         </TouchableOpacity>

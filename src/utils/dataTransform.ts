@@ -51,7 +51,7 @@ export const transformAssetToSupabaseAsset = (
     name: asset.name,
     type: asset.type,
     amount: asset.amount.toString(),
-    annual_return: asset.annualReturn.toString(),
+    annual_return: asset.annualReturn?.toString() || null,
   };
 };
 

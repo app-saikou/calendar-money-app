@@ -2,8 +2,19 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Asset, Transaction, MonthlyBudget, CalendarDayData } from "../types";
 import { calculateAssetProjection } from "../utils/calculations";
-import { calendarCacheApi } from "../lib/supabaseClient";
+import {
+  calendarCacheApi,
+  assetsApi,
+  transactionsApi,
+} from "../lib/supabaseClient";
+import {
+  transformSupabaseAssetToAsset,
+  transformAssetToSupabaseAsset,
+  transformSupabaseTransactionToTransaction,
+  transformTransactionToSupabaseTransaction,
+} from "../utils/dataTransform";
 import { useAuth } from "../hooks/useAuth";
+import { Tables } from "../lib/supabase";
 
 interface AssetContextType {
   assets: Asset[];
@@ -56,8 +67,139 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // 初期化処理
   useEffect(() => {
-    initializeFromOnboarding();
-  }, []);
+    if (user) {
+      loadDataFromSupabase();
+    } else {
+      initializeFromOnboarding();
+    }
+  }, [user]);
+
+  // Supabaseからデータを読み込み
+  const loadDataFromSupabase = async () => {
+    if (!user) return;
+
+    try {
+      console.log("Loading data from Supabase...");
+
+      // 資産データを読み込み
+      const supabaseAssets: Tables<"assets">[] = await assetsApi.getAssets(
+        user.id
+      );
+      let transformedAssets: Asset[] = supabaseAssets.map(
+        transformSupabaseAssetToAsset
+      );
+
+      // 資産データが存在しない場合は初期データを作成
+      if (transformedAssets.length === 0) {
+        console.log("No assets found, creating initial assets...");
+        await createInitialAssets();
+        // 作成後に再読み込み
+        const newSupabaseAssets: Tables<"assets">[] = await assetsApi.getAssets(
+          user.id
+        );
+        transformedAssets = newSupabaseAssets.map(
+          transformSupabaseAssetToAsset
+        );
+      }
+
+      setAssets(transformedAssets);
+      console.log(`Loaded ${transformedAssets.length} assets from Supabase`);
+
+      // 取引データを読み込み
+      const supabaseTransactions: Tables<"transactions">[] =
+        await transactionsApi.getTransactions(user.id);
+      const transformedTransactions: Transaction[] = supabaseTransactions.map(
+        transformSupabaseTransactionToTransaction
+      );
+      setTransactions(transformedTransactions);
+      console.log(
+        `Loaded ${transformedTransactions.length} transactions from Supabase`
+      );
+
+      // 予算データは既にBudgetSettingsScreenで管理されているので、ここでは初期化のみ
+      await initializeBudgetFromOnboarding();
+
+      setIsInitialized(true);
+    } catch (error) {
+      console.error("Error loading data from Supabase:", error);
+      // エラーの場合はオンボーディングデータから初期化
+      await initializeFromOnboarding();
+    }
+  };
+
+  // 初期資産データを作成
+  const createInitialAssets = async () => {
+    if (!user) return;
+
+    try {
+      const onboardingData = await AsyncStorage.getItem("onboardingData");
+      if (onboardingData) {
+        const data = JSON.parse(onboardingData);
+
+        // 初期資産を作成
+        const initialAssets = [
+          {
+            name: "現金・預金",
+            type: "cash" as const,
+            amount: data.cashAmount,
+          },
+          {
+            name: "株式・投資信託",
+            type: "stock" as const,
+            amount: data.stockAmount,
+            annualReturn: data.stockAnnualReturn,
+          },
+        ];
+
+        // Supabaseに保存
+        for (const asset of initialAssets) {
+          const supabaseAsset = transformAssetToSupabaseAsset(asset, user.id);
+          await assetsApi.createAsset(supabaseAsset);
+        }
+
+        console.log("Initial assets created successfully");
+      }
+    } catch (error) {
+      console.error("Error creating initial assets:", error);
+      throw error;
+    }
+  };
+
+  // オンボーディングデータから予算を初期化
+  const initializeBudgetFromOnboarding = async () => {
+    try {
+      const onboardingData = await AsyncStorage.getItem("onboardingData");
+      if (onboardingData) {
+        const data = JSON.parse(onboardingData);
+
+        // 予算の初期化
+        const currentDate = new Date();
+        const currentMonth =
+          currentDate.getFullYear() +
+          "-" +
+          String(currentDate.getMonth() + 1).padStart(2, "0");
+
+        const initialBudget: MonthlyBudget = {
+          id: "1",
+          month: currentMonth,
+          income: data.monthlyIncome,
+          expense: data.monthlyExpense,
+          stockInvestments: [
+            {
+              id: "1",
+              name: "月次積立",
+              amount: data.monthlyStockInvestment,
+              startDate: new Date().toISOString().split("T")[0],
+            },
+          ],
+          startDate: new Date().toISOString().split("T")[0],
+        };
+        setBudgets([initialBudget]);
+      }
+    } catch (error) {
+      console.log("Error initializing budget from onboarding:", error);
+    }
+  };
 
   const initializeFromOnboarding = async () => {
     try {
@@ -132,125 +274,247 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   // Asset management functions
-  const addAsset = (asset: Omit<Asset, "id">) => {
-    const newAsset: Asset = {
-      ...asset,
-      id: Date.now().toString(),
-    };
-    setAssets((prev) => [...prev, newAsset]);
+  const addAsset = async (asset: Omit<Asset, "id">) => {
+    if (!user) {
+      console.error("User not authenticated, cannot add asset");
+      return;
+    }
+
+    try {
+      // Supabaseに保存
+      const supabaseAsset = transformAssetToSupabaseAsset(asset, user.id);
+      const savedAsset = await assetsApi.createAsset(supabaseAsset);
+
+      // ローカル状態を更新
+      const newAsset = transformSupabaseAssetToAsset(savedAsset);
+      setAssets((prev) => [...prev, newAsset]);
+
+      console.log("Asset added successfully:", newAsset);
+    } catch (error) {
+      console.error("Error adding asset:", error);
+      throw error;
+    }
   };
 
-  const updateAsset = (id: string, asset: Partial<Asset>) => {
-    setAssets((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, ...asset } : a))
-    );
+  const updateAsset = async (id: string, asset: Partial<Asset>) => {
+    if (!user) {
+      console.error("User not authenticated, cannot update asset");
+      return;
+    }
+
+    try {
+      // Supabaseを更新
+      const updates = {
+        name: asset.name,
+        type: asset.type,
+        amount: asset.amount?.toString(),
+        annual_return: asset.annualReturn?.toString(),
+      };
+
+      const savedAsset = await assetsApi.updateAsset(id, updates);
+
+      // ローカル状態を更新
+      const updatedAsset = transformSupabaseAssetToAsset(savedAsset);
+      setAssets((prev) => prev.map((a) => (a.id === id ? updatedAsset : a)));
+
+      console.log("Asset updated successfully:", updatedAsset);
+    } catch (error) {
+      console.error("Error updating asset:", error);
+      throw error;
+    }
   };
 
-  const deleteAsset = (id: string) => {
-    setAssets((prev) => prev.filter((a) => a.id !== id));
-    // 資産を削除する際は、その資産に関連する取引も削除
-    setTransactions((prev) =>
-      prev.filter((t) => t.fromAssetId !== id && t.toAssetId !== id)
-    );
+  const deleteAsset = async (id: string) => {
+    if (!user) {
+      console.error("User not authenticated, cannot delete asset");
+      return;
+    }
+
+    try {
+      // Supabaseから削除
+      await assetsApi.deleteAsset(id);
+
+      // ローカル状態を更新
+      setAssets((prev) => prev.filter((a) => a.id !== id));
+
+      // 資産を削除する際は、その資産に関連する取引も削除
+      setTransactions((prev) =>
+        prev.filter((t) => t.fromAssetId !== id && t.toAssetId !== id)
+      );
+
+      console.log("Asset deleted successfully:", id);
+    } catch (error) {
+      console.error("Error deleting asset:", error);
+      throw error;
+    }
   };
 
   // Transaction management functions
-  const addTransaction = (transaction: Omit<Transaction, "id">) => {
-    const newTransaction: Transaction = {
-      ...transaction,
-      id: Date.now().toString(),
-    };
-    setTransactions((prev) => [...prev, newTransaction]);
+  const addTransaction = async (transaction: Omit<Transaction, "id">) => {
+    if (!user) {
+      console.error("User not authenticated, cannot add transaction");
+      return;
+    }
 
-    // 資産額を更新
-    setAssets((prev) => {
-      const updatedAssets = [...prev];
+    try {
+      // Supabaseに保存
+      const supabaseTransaction = transformTransactionToSupabaseTransaction(
+        transaction,
+        user.id
+      );
+      const savedTransaction = await transactionsApi.createTransaction(
+        supabaseTransaction
+      );
 
-      if (transaction.type === "stock_investment") {
-        // 株式投資: 選択された資産間で移動
-        const fromAsset = updatedAssets.find(
-          (a) => a.id === transaction.fromAssetId
-        );
-        const toAsset = updatedAssets.find(
-          (a) => a.id === transaction.toAssetId
-        );
+      // ローカル状態を更新
+      const newTransaction =
+        transformSupabaseTransactionToTransaction(savedTransaction);
+      setTransactions((prev) => [...prev, newTransaction]);
 
-        if (fromAsset && toAsset) {
-          fromAsset.amount -= Math.abs(transaction.amount);
-          toAsset.amount += Math.abs(transaction.amount);
-        }
-      } else if (transaction.type === "income") {
-        // 収入: 選択された資産に加算
-        const toAsset = updatedAssets.find(
-          (a) => a.id === transaction.toAssetId
-        );
-        if (toAsset) {
-          toAsset.amount += transaction.amount;
-        }
-      } else if (transaction.type === "expense") {
-        // 支出: 選択された資産から減算
-        const fromAsset = updatedAssets.find(
-          (a) => a.id === transaction.fromAssetId
-        );
-        if (fromAsset) {
-          fromAsset.amount += transaction.amount; // transaction.amountは負の値
-        }
-      }
-
-      return updatedAssets;
-    });
-  };
-
-  const updateTransaction = (id: string, transaction: Partial<Transaction>) => {
-    setTransactions((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ...transaction } : t))
-    );
-  };
-
-  const deleteTransaction = (id: string) => {
-    // 削除する取引を取得
-    const transactionToDelete = transactions.find((t) => t.id === id);
-
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
-
-    // 資産額を逆更新
-    if (transactionToDelete) {
+      // 資産額を更新
       setAssets((prev) => {
         const updatedAssets = [...prev];
 
-        if (transactionToDelete.type === "stock_investment") {
-          // 株式投資削除: 選択された資産間で逆移動
+        if (transaction.type === "stock_investment") {
+          // 株式投資: 選択された資産間で移動
           const fromAsset = updatedAssets.find(
-            (a) => a.id === transactionToDelete.fromAssetId
+            (a) => a.id === transaction.fromAssetId
           );
           const toAsset = updatedAssets.find(
-            (a) => a.id === transactionToDelete.toAssetId
+            (a) => a.id === transaction.toAssetId
           );
 
           if (fromAsset && toAsset) {
-            fromAsset.amount += Math.abs(transactionToDelete.amount);
-            toAsset.amount -= Math.abs(transactionToDelete.amount);
+            fromAsset.amount -= Math.abs(transaction.amount);
+            toAsset.amount += Math.abs(transaction.amount);
           }
-        } else if (transactionToDelete.type === "income") {
-          // 収入削除: 選択された資産から減算
+        } else if (transaction.type === "income") {
+          // 収入: 選択された資産に加算
           const toAsset = updatedAssets.find(
-            (a) => a.id === transactionToDelete.toAssetId
+            (a) => a.id === transaction.toAssetId
           );
           if (toAsset) {
-            toAsset.amount -= transactionToDelete.amount;
+            toAsset.amount += transaction.amount;
           }
-        } else if (transactionToDelete.type === "expense") {
-          // 支出削除: 選択された資産に加算
+        } else if (transaction.type === "expense") {
+          // 支出: 選択された資産から減算
           const fromAsset = updatedAssets.find(
-            (a) => a.id === transactionToDelete.fromAssetId
+            (a) => a.id === transaction.fromAssetId
           );
           if (fromAsset) {
-            fromAsset.amount -= transactionToDelete.amount; // transaction.amountは負の値なので減算
+            fromAsset.amount += transaction.amount; // transaction.amountは負の値
           }
         }
 
         return updatedAssets;
       });
+
+      console.log("Transaction added successfully:", newTransaction);
+    } catch (error) {
+      console.error("Error adding transaction:", error);
+      throw error;
+    }
+  };
+
+  const updateTransaction = async (
+    id: string,
+    transaction: Partial<Transaction>
+  ) => {
+    if (!user) {
+      console.error("User not authenticated, cannot update transaction");
+      return;
+    }
+
+    try {
+      // Supabaseを更新
+      const updates = {
+        date: transaction.date,
+        amount: transaction.amount?.toString(),
+        description: transaction.description,
+        type: transaction.type,
+        from_asset_id: transaction.fromAssetId,
+        to_asset_id: transaction.toAssetId,
+      };
+
+      const savedTransaction = await transactionsApi.updateTransaction(
+        id,
+        updates
+      );
+
+      // ローカル状態を更新
+      const updatedTransaction =
+        transformSupabaseTransactionToTransaction(savedTransaction);
+      setTransactions((prev) =>
+        prev.map((t) => (t.id === id ? updatedTransaction : t))
+      );
+
+      console.log("Transaction updated successfully:", updatedTransaction);
+    } catch (error) {
+      console.error("Error updating transaction:", error);
+      throw error;
+    }
+  };
+
+  const deleteTransaction = async (id: string) => {
+    if (!user) {
+      console.error("User not authenticated, cannot delete transaction");
+      return;
+    }
+
+    try {
+      // 削除する取引を取得
+      const transactionToDelete = transactions.find((t) => t.id === id);
+
+      // Supabaseから削除
+      await transactionsApi.deleteTransaction(id);
+
+      // ローカル状態を更新
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
+
+      // 資産額を逆更新
+      if (transactionToDelete) {
+        setAssets((prev) => {
+          const updatedAssets = [...prev];
+
+          if (transactionToDelete.type === "stock_investment") {
+            // 株式投資削除: 選択された資産間で逆移動
+            const fromAsset = updatedAssets.find(
+              (a) => a.id === transactionToDelete.fromAssetId
+            );
+            const toAsset = updatedAssets.find(
+              (a) => a.id === transactionToDelete.toAssetId
+            );
+
+            if (fromAsset && toAsset) {
+              fromAsset.amount += Math.abs(transactionToDelete.amount);
+              toAsset.amount -= Math.abs(transactionToDelete.amount);
+            }
+          } else if (transactionToDelete.type === "income") {
+            // 収入削除: 選択された資産から減算
+            const toAsset = updatedAssets.find(
+              (a) => a.id === transactionToDelete.toAssetId
+            );
+            if (toAsset) {
+              toAsset.amount -= transactionToDelete.amount;
+            }
+          } else if (transactionToDelete.type === "expense") {
+            // 支出削除: 選択された資産に加算
+            const fromAsset = updatedAssets.find(
+              (a) => a.id === transactionToDelete.fromAssetId
+            );
+            if (fromAsset) {
+              fromAsset.amount -= transactionToDelete.amount; // transaction.amountは負の値なので減算
+            }
+          }
+
+          return updatedAssets;
+        });
+      }
+
+      console.log("Transaction deleted successfully:", id);
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
+      throw error;
     }
   };
 

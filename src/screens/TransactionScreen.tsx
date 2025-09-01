@@ -46,7 +46,7 @@ export const TransactionScreen: React.FC = () => {
     });
   };
 
-  const saveTransaction = () => {
+  const saveTransaction = async () => {
     if (!formData.amount || !formData.description) {
       Alert.alert("エラー", "金額と説明を入力してください");
       return;
@@ -78,26 +78,38 @@ export const TransactionScreen: React.FC = () => {
     // 支出と株式投資の場合は負の値にする
     const finalAmount = formData.type === "income" ? amount : -amount;
 
-    addTransaction({
-      amount: finalAmount,
-      description: formData.description,
-      type: formData.type,
-      date: formData.date,
-      fromAssetId: formData.fromAssetId,
-      toAssetId: formData.toAssetId,
-    });
+    try {
+      await addTransaction({
+        amount: finalAmount,
+        description: formData.description,
+        type: formData.type,
+        date: formData.date,
+        fromAssetId: formData.fromAssetId,
+        toAssetId: formData.toAssetId,
+      });
 
-    Alert.alert("成功", "取引を記録しました");
-    resetForm();
+      Alert.alert("成功", "取引を記録しました");
+      resetForm();
+    } catch (error) {
+      console.error("Error saving transaction:", error);
+      Alert.alert("エラー", "取引の保存に失敗しました");
+    }
   };
 
-  const confirmDeleteTransaction = (transaction: Transaction) => {
+  const handleDeleteTransaction = async (transaction: Transaction) => {
     Alert.alert("削除確認", `「${transaction.description}」を削除しますか？`, [
       { text: "キャンセル", style: "cancel" },
       {
         text: "削除",
         style: "destructive",
-        onPress: () => deleteTransaction(transaction.id),
+        onPress: async () => {
+          try {
+            await deleteTransaction(transaction.id);
+          } catch (error) {
+            console.error("Error deleting transaction:", error);
+            Alert.alert("エラー", "取引の削除に失敗しました");
+          }
+        },
       },
     ]);
   };
@@ -259,7 +271,7 @@ export const TransactionScreen: React.FC = () => {
             </Text>
             <TouchableOpacity
               style={styles.deleteButton}
-              onPress={() => confirmDeleteTransaction(item)}
+              onPress={() => handleDeleteTransaction(item)}
             >
               <Icon name={ICONS.DELETE} size={18} color="#F44336" />
             </TouchableOpacity>
