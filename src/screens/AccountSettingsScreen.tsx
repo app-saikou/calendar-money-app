@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
 import { Icon, ICONS, ICON_COLORS, ICON_SIZES } from "../components/Icon";
 
 export const AccountSettingsScreen: React.FC = () => {

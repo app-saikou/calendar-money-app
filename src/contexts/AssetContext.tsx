@@ -6,6 +6,7 @@ import {
   calendarCacheApi,
   assetsApi,
   transactionsApi,
+  usersApi,
 } from "../lib/supabaseClient";
 import {
   transformSupabaseAssetToAsset,
@@ -13,7 +14,7 @@ import {
   transformSupabaseTransactionToTransaction,
   transformTransactionToSupabaseTransaction,
 } from "../utils/dataTransform";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
 import { Tables } from "../lib/supabase";
 
 interface AssetContextType {
@@ -41,6 +42,7 @@ interface AssetContextType {
   getCashAmount: () => number;
   getStockAmount: () => number;
   refreshCalendarData: () => void;
+  handleOnboardingCompleted: () => Promise<void>; // オンボーディング完了後のコールバック
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
@@ -555,29 +557,55 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
       .reduce((total, asset) => total + asset.amount, 0);
   };
 
+  // 資産推移データを再計算
   const refreshCalendarData = async () => {
-    // ユーザーの年齢を取得して100歳までの期間を計算
     try {
-      const onboardingData = await AsyncStorage.getItem("onboardingData");
-      if (onboardingData) {
-        const userData = JSON.parse(onboardingData);
-        const userAge = userData.age || 25;
-        const targetAge = 100;
-        const yearsToTarget = targetAge - userAge;
-        console.log(
-          `Calculating projection for ${yearsToTarget} years until age ${targetAge}`
-        );
+      if (!user) {
+        console.log("User not authenticated, cannot refresh calendar data");
+        return;
       }
-    } catch (error) {
-      console.log("Using default projection period");
-    }
 
-    const projectionData = calculateAssetProjection(
-      assets,
-      budgets,
-      transactions
-    );
-    setCalendarData(projectionData);
+      console.log("Starting calendar data refresh for user:", user.id);
+
+      // ユーザーのオンボーディング完了日を取得
+      const userData = await usersApi.getUser(user.id);
+      console.log("User data retrieved:", userData);
+
+      const onboardingDate = (userData as any).onboarding_completed_date;
+      console.log("Onboarding completion date:", onboardingDate);
+
+      if (!onboardingDate) {
+        console.log(
+          "No onboarding completion date found, cannot calculate projection"
+        );
+        return;
+      }
+
+      console.log("Calculating asset projection from:", onboardingDate);
+      console.log("Assets count:", assets.length);
+      console.log("Budgets count:", budgets.length);
+      console.log("Transactions count:", transactions.length);
+
+      // ユーザーの生年月日を取得
+      const userBirthDate = (userData as any).birth_date || "1995-03-28"; // デフォルト生年月日
+      console.log("User birth date for projection calculation:", userBirthDate);
+
+      const projectionData = calculateAssetProjection(
+        assets,
+        budgets,
+        transactions,
+        onboardingDate, // オンボーディング完了日
+        userBirthDate // ユーザーの生年月日
+      );
+
+      console.log(
+        "Projection data calculated, days:",
+        Object.keys(projectionData).length
+      );
+      setCalendarData(projectionData);
+    } catch (error) {
+      console.error("Error refreshing calendar data:", error);
+    }
   };
 
   // 100歳までの資産推移データをSupabaseに保存
@@ -588,18 +616,27 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      // ユーザーの年齢を取得
-      const onboardingData = await AsyncStorage.getItem("onboardingData");
-      if (!onboardingData) {
-        console.log("No onboarding data found, skipping calendar data save");
+      // ユーザーのオンボーディング完了日を取得
+      const userData = await usersApi.getUser(user.id);
+      const onboardingDate = (userData as any).onboarding_completed_date;
+
+      if (!onboardingDate) {
+        console.log(
+          "No onboarding completion date found, skipping calendar data save"
+        );
         return;
       }
 
       // 最新の資産推移データを計算
+      const userBirthDate = (userData as any).birth_date || "1995-03-28"; // デフォルト生年月日
+      console.log("User birth date for projection calculation:", userBirthDate);
+
       const projectionData = calculateAssetProjection(
         assets,
         budgets,
-        transactions
+        transactions,
+        onboardingDate, // オンボーディング完了日
+        userBirthDate // ユーザーの生年月日
       );
 
       console.log(
@@ -655,6 +692,15 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [assets, budgets, transactions, isInitialized]);
 
+  // オンボーディング完了後の処理
+  const handleOnboardingCompleted = async () => {
+    console.log(
+      "AssetContext: Onboarding completed, refreshing calendar data..."
+    );
+    await refreshCalendarData();
+    await saveCalendarDataToSupabase();
+  };
+
   const value: AssetContextType = {
     assets,
     transactions,
@@ -672,6 +718,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
     getCashAmount,
     getStockAmount,
     refreshCalendarData,
+    handleOnboardingCompleted, // オンボーディング完了後のコールバック
   };
 
   return (

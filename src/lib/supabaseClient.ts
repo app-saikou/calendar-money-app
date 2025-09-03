@@ -43,6 +43,7 @@ export const usersApi = {
       .update({
         ...onboardingData,
         is_onboarding_completed: true,
+        onboarding_completed_date: new Date().toISOString().split("T")[0], // 今日の日付を設定
       })
       .eq("id", userId)
       .select()

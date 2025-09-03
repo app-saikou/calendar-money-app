@@ -7,7 +7,7 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
 import { Icon, ICONS } from "../components/Icon";
 
 interface SettingsScreenProps {

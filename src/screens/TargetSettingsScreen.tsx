@@ -12,7 +12,7 @@ import {
 import { formatCurrency } from "../utils/calculations";
 import { Icon, ICONS } from "../components/Icon";
 import { usersApi } from "../lib/supabaseClient";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
 
 export const TargetSettingsScreen: React.FC = () => {
   const { user } = useAuth();

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -12,7 +12,7 @@ import {
   OnboardingProvider,
   useOnboarding,
 } from "./src/contexts/OnboardingContext";
-import { useAuth } from "./src/hooks/useAuth";
+import { useAuth } from "./src/contexts/AuthContext";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { AssetManagementScreen } from "./src/screens/AssetManagementScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
@@ -22,6 +22,8 @@ import { TargetSettingsScreen } from "./src/screens/TargetSettingsScreen";
 import { TransactionScreen } from "./src/screens/TransactionScreen";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { OnboardingScreen } from "./src/screens/OnboardingScreen";
+import { AuthProvider } from "./src/contexts/AuthContext";
+import { useAssets } from "./src/contexts/AssetContext";
 
 const Tab = createBottomTabNavigator();
 const SettingsStack = createNativeStackNavigator();
@@ -75,7 +77,19 @@ const SettingsStackScreen: React.FC = () => {
 // メインアプリコンポーネント（認証状態に基づいて表示を切り替え）
 const MainApp: React.FC = () => {
   const { user, loading } = useAuth();
-  const { isOnboardingCompleted, completeOnboarding } = useOnboarding();
+  const {
+    isOnboardingCompleted,
+    completeOnboarding,
+    setOnOnboardingCompleted,
+  } = useOnboarding();
+  const { handleOnboardingCompleted } = useAssets();
+
+  // オンボーディング完了後のコールバックを設定
+  useEffect(() => {
+    if (handleOnboardingCompleted) {
+      setOnOnboardingCompleted(handleOnboardingCompleted);
+    }
+  }, [handleOnboardingCompleted, setOnOnboardingCompleted]);
 
   if (loading) {
     return (
@@ -198,13 +212,15 @@ export default function App() {
   return (
     <>
       <StatusBar style="light" />
-      <AssetProvider>
-        <SettingsProvider>
-          <OnboardingProvider>
-            <MainApp />
-          </OnboardingProvider>
-        </SettingsProvider>
-      </AssetProvider>
+      <AuthProvider>
+        <AssetProvider>
+          <SettingsProvider>
+            <OnboardingProvider>
+              <MainApp />
+            </OnboardingProvider>
+          </SettingsProvider>
+        </AssetProvider>
+      </AuthProvider>
     </>
   );
 }

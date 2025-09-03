@@ -19,6 +19,7 @@ export interface Database {
           target_age: number | null;
           target_amount: string | null;
           is_onboarding_completed: boolean | null;
+          onboarding_completed_date: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -31,6 +32,7 @@ export interface Database {
           target_age?: number | null;
           target_amount?: string | null;
           is_onboarding_completed?: boolean | null;
+          onboarding_completed_date?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -38,11 +40,12 @@ export interface Database {
           id?: string;
           email?: string;
           name?: string | null;
-          age?: number | null;
+          age?: string | null;
           birth_date?: string | null;
           target_age?: number | null;
           target_amount?: string | null;
           is_onboarding_completed?: boolean | null;
+          onboarding_completed_date?: string | null;
           created_at?: string;
           updated_at?: string;
         };

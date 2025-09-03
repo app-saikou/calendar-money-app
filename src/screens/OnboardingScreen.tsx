@@ -16,7 +16,11 @@ import {
   budgetCategoriesApi,
   stockInvestmentsApi,
 } from "../lib/supabaseClient";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
+import { AssetAmountSlider } from "../components/AssetAmountSlider";
+import { AnnualReturnSlider } from "../components/AnnualReturnSlider";
+import { MonthlyBudgetSlider } from "../components/MonthlyBudgetSlider";
+import { TargetSettingSlider } from "../components/TargetSettingSlider";
 
 interface OnboardingScreenProps {
   onComplete: (data: OnboardingData) => void;
@@ -303,44 +307,25 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>💵 現金・預金</Text>
-        <TextInput
-          style={styles.input}
-          value={cashAmount}
-          onChangeText={setCashAmount}
-          placeholder="例: 1000000（100万円）"
-          keyboardType="numeric"
+        <AssetAmountSlider
+          value={parseFloat(cashAmount) || 0}
+          onValueChange={(value) => setCashAmount(value.toString())}
         />
-        {cashAmount && (
-          <Text style={styles.formattedAmount}>
-            {formatCurrency(parseFloat(cashAmount))}
-          </Text>
-        )}
       </View>
 
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>📈 株式・投資信託</Text>
-        <TextInput
-          style={styles.input}
-          value={stockAmount}
-          onChangeText={setStockAmount}
-          placeholder="例: 500000（50万円）"
-          keyboardType="numeric"
+        <AssetAmountSlider
+          value={parseFloat(stockAmount) || 0}
+          onValueChange={(value) => setStockAmount(value.toString())}
         />
-        {stockAmount && (
-          <Text style={styles.formattedAmount}>
-            {formatCurrency(parseFloat(stockAmount))}
-          </Text>
-        )}
       </View>
 
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>📊 株式の想定年利（%）</Text>
-        <TextInput
-          style={styles.input}
-          value={stockAnnualReturn}
-          onChangeText={setStockAnnualReturn}
-          placeholder="例: 5（5%）"
-          keyboardType="numeric"
+        <AnnualReturnSlider
+          value={parseFloat(stockAnnualReturn) || 5}
+          onValueChange={(value) => setStockAnnualReturn(value.toString())}
         />
         <Text style={styles.helperText}>
           将来予測に使用します。一般的には3-7%程度です。
@@ -356,59 +341,35 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>📈 月収入</Text>
-        <TextInput
-          style={styles.input}
-          value={monthlyIncome}
-          onChangeText={setMonthlyIncome}
-          placeholder="例: 300000（30万円）"
-          keyboardType="numeric"
+        <MonthlyBudgetSlider
+          value={parseFloat(monthlyIncome) || 0}
+          onValueChange={(value) => setMonthlyIncome(value.toString())}
+          type="income"
         />
-        {monthlyIncome && (
-          <Text style={styles.formattedAmount}>
-            {formatCurrency(parseFloat(monthlyIncome))}
-          </Text>
-        )}
       </View>
 
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>📉 月支出</Text>
-        <TextInput
-          style={styles.input}
-          value={monthlyExpense}
-          onChangeText={setMonthlyExpense}
-          placeholder="例: 200000（20万円）"
-          keyboardType="numeric"
+        <MonthlyBudgetSlider
+          value={parseFloat(monthlyExpense) || 0}
+          onValueChange={(value) => setMonthlyExpense(value.toString())}
+          type="expense"
         />
-        {monthlyExpense && (
-          <Text style={styles.formattedAmount}>
-            {formatCurrency(parseFloat(monthlyExpense))}
-          </Text>
-        )}
       </View>
 
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>📊 月次株式投資額</Text>
-        <TextInput
-          style={styles.input}
-          value={monthlyStockInvestment}
-          onChangeText={setMonthlyStockInvestment}
-          placeholder="例: 50000（5万円）"
-          keyboardType="numeric"
+        <MonthlyBudgetSlider
+          value={parseFloat(monthlyStockInvestment) || 0}
+          onValueChange={(value) => setMonthlyStockInvestment(value.toString())}
+          type="investment"
         />
-        {monthlyStockInvestment && (
-          <Text style={styles.formattedAmount}>
-            {formatCurrency(parseFloat(monthlyStockInvestment))}
-          </Text>
-        )}
         <Text style={styles.helperText}>毎月積立投資する金額（任意）</Text>
       </View>
     </View>
   );
 
   const renderStep4 = () => {
-    const presetAges = [60, 65, 70, 75];
-    const presetAmounts = [30000000, 50000000, 100000000, 200000000];
-
     return (
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>🎯 目標設定</Text>
@@ -416,82 +377,26 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>🎂 目標年齢</Text>
-          <TextInput
-            style={styles.input}
-            value={targetAge}
-            onChangeText={setTargetAge}
-            placeholder="例: 65"
-            keyboardType="numeric"
+          <TargetSettingSlider
+            value={parseInt(targetAge) || 65}
+            onValueChange={(value) => setTargetAge(value.toString())}
+            type="age"
           />
           <Text style={styles.helperText}>
             この年齢時点での資産額が予測されます
           </Text>
-
-          <View style={styles.presetContainer}>
-            {presetAges.map((age) => (
-              <TouchableOpacity
-                key={age}
-                style={[
-                  styles.presetButton,
-                  parseInt(targetAge) === age && styles.presetButtonSelected,
-                ]}
-                onPress={() => setTargetAge(age.toString())}
-              >
-                <Text
-                  style={[
-                    styles.presetButtonText,
-                    parseInt(targetAge) === age &&
-                      styles.presetButtonTextSelected,
-                  ]}
-                >
-                  {age}歳
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
 
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>💰 目標資産額</Text>
-          <TextInput
-            style={styles.input}
-            value={targetAmount}
-            onChangeText={setTargetAmount}
-            placeholder="例: 50000000（5000万円）"
-            keyboardType="numeric"
+          <TargetSettingSlider
+            value={parseInt(targetAmount) || 50000000}
+            onValueChange={(value) => setTargetAmount(value.toString())}
+            type="amount"
           />
-          {targetAmount && (
-            <Text style={styles.formattedAmount}>
-              {formatCurrency(parseFloat(targetAmount))}
-            </Text>
-          )}
           <Text style={styles.helperText}>
             いつ達成できるかがホーム画面に表示されます
           </Text>
-
-          <View style={styles.presetContainer}>
-            {presetAmounts.map((amount) => (
-              <TouchableOpacity
-                key={amount}
-                style={[
-                  styles.presetButton,
-                  parseInt(targetAmount) === amount &&
-                    styles.presetButtonSelected,
-                ]}
-                onPress={() => setTargetAmount(amount.toString())}
-              >
-                <Text
-                  style={[
-                    styles.presetButtonText,
-                    parseInt(targetAmount) === amount &&
-                      styles.presetButtonTextSelected,
-                  ]}
-                >
-                  {formatCurrency(amount)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
       </View>
     );

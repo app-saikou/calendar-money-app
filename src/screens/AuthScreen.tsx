@@ -8,7 +8,7 @@ import {
   Alert,
   ScrollView,
 } from "react-native";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
 
 export const AuthScreen: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);

@@ -1,30 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { User, OnboardingData } from "../types";
-
-interface User {
-  id: string;
-  name: string;
-  age: number;
-  email: string;
-  isOnboardingCompleted: boolean;
-}
+import { User } from "@supabase/supabase-js";
+import { supabase } from "../lib/supabase";
 
 interface AuthContextType {
   user: User | null;
-  isLoading: boolean;
-  login: (userId: string, email: string) => Promise<void>;
-  logout: () => Promise<void>;
-  completeOnboarding: (userData: {
-    name: string;
-    age: number;
-    cashAmount: number;
-    stockAmount: number;
-    stockAnnualReturn: number;
-    monthlyIncome: number;
-    monthlyExpense: number;
-    monthlyStockInvestment: number;
-  }) => Promise<void>;
+  loading: boolean;
+  signUp: (
+    email: string,
+    password: string
+  ) => Promise<{ data: any; error: any }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ data: any; error: any }>;
+  signOut: () => Promise<{ error: any }>;
+  resetPassword: (email: string) => Promise<{ data: any; error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,93 +31,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkAuthState();
+    // 現在のセッションを取得
+    const getSession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        console.log("Current session:", session?.user?.id);
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error("Session check error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getSession();
+
+    // 認証状態の変更を監視
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state change:", event, session?.user?.id);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const checkAuthState = async () => {
-    try {
-      const userData = await AsyncStorage.getItem("user");
-      if (userData) {
-        setUser(JSON.parse(userData));
-      }
-    } catch (error) {
-      console.log("Error checking auth state:", error);
-    } finally {
-      setIsLoading(false);
-    }
+  const signUp = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    return { data, error };
   };
 
-  const login = async (userId: string, email: string) => {
-    try {
-      // TODO: 実際の認証処理をSupabaseで実装
-      const newUser: User = {
-        id: userId,
-        name: "",
-        age: 0,
-        email,
-        isOnboardingCompleted: false,
-      };
-
-      await AsyncStorage.setItem("user", JSON.stringify(newUser));
-      setUser(newUser);
-    } catch (error) {
-      console.log("Error during login:", error);
-      throw error;
-    }
+  const signIn = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { data, error };
   };
 
-  const logout = async () => {
-    try {
-      await AsyncStorage.removeItem("user");
-      setUser(null);
-    } catch (error) {
-      console.log("Error during logout:", error);
-    }
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    return { error };
   };
 
-  const completeOnboarding = async (userData: OnboardingData) => {
-    try {
-      if (!user) return;
-
-      const updatedUser: User = {
-        ...user,
-        name: userData.name,
-        age: userData.age,
-        isOnboardingCompleted: true,
-      };
-
-      await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
-
-      // オンボーディングデータを保存
-      await AsyncStorage.setItem("onboardingData", JSON.stringify(userData));
-
-      // 目標値もSettingsContextで使えるように保存
-      if (userData.targetAge) {
-        await AsyncStorage.setItem("targetAge", userData.targetAge.toString());
-      }
-      if (userData.targetAmount) {
-        await AsyncStorage.setItem(
-          "targetAmount",
-          userData.targetAmount.toString()
-        );
-      }
-
-      setUser(updatedUser);
-    } catch (error) {
-      console.log("Error completing onboarding:", error);
-      throw error;
-    }
+  const resetPassword = async (email: string) => {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "yourapp://reset-password",
+    });
+    return { data, error };
   };
 
   const value: AuthContextType = {
     user,
-    isLoading,
-    login,
-    logout,
-    completeOnboarding,
+    loading,
+    signUp,
+    signIn,
+    signOut,
+    resetPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

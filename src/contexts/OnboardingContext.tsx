@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "./AuthContext";
 import { OnboardingData } from "../types";
-import { useAuth } from "../hooks/useAuth";
+import { usersApi } from "../lib/supabaseClient";
 
 interface OnboardingContextType {
   isOnboardingCompleted: boolean;
   onboardingData: OnboardingData | null;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   resetOnboarding: () => Promise<void>;
+  setOnOnboardingCompleted: (callback: () => void) => void; // オンボーディング完了後のコールバックを設定する関数
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(
@@ -29,17 +31,43 @@ interface OnboardingProviderProps {
 export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
   children,
 }) => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false);
   const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(
     null
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [onOnboardingCompletedCallback, setOnOnboardingCompletedCallback] =
+    useState<(() => void) | null>(null);
+
+  // コールバックを設定する関数
+  const setOnOnboardingCompleted = (callback: () => void) => {
+    setOnOnboardingCompletedCallback(() => callback);
+  };
 
   // ユーザーが変更されたときにオンボーディング状態を読み込み
   useEffect(() => {
     const loadOnboardingState = async () => {
+      // 認証状態の初期化が完了するまで待つ
+      if (authLoading) {
+        console.log("認証状態の初期化中、待機中...");
+        return;
+      }
+
       if (!user) {
+        console.log("ユーザーが認証されていません");
+        setIsOnboardingCompleted(false);
+        setOnboardingData(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // user.idが有効なUUIDかチェック
+      if (!user.id || user.id === "temp-user-id" || user.id.length < 10) {
+        console.log(
+          "無効なユーザーID、オンボーディング状態の読み込みをスキップ:",
+          user.id
+        );
         setIsOnboardingCompleted(false);
         setOnboardingData(null);
         setIsLoading(false);
@@ -47,6 +75,8 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
       }
 
       try {
+        console.log("オンボーディング状態を読み込み中、ユーザーID:", user.id);
+
         const { data, error } = await supabase
           .from("users")
           .select(
@@ -90,35 +120,53 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
     };
 
     loadOnboardingState();
-  }, [user]);
+  }, [user, authLoading]);
 
   const completeOnboarding = async (data: OnboardingData) => {
+    console.log("OnboardingContext.completeOnboarding called with data:", data);
+
     if (!user) {
       console.error("ユーザーがログインしていません");
       return;
     }
 
-    try {
-      // ユーザーテーブルを更新
-      const { error: userError } = await supabase
-        .from("users")
-        .update({
-          name: data.name,
-          age: data.age,
-          birth_date: data.birthDate,
-          target_age: data.targetAge,
-          target_amount: data.targetAmount.toString(),
-          is_onboarding_completed: true,
-        })
-        .eq("id", user.id);
+    // user.idが有効なUUIDかチェック
+    if (!user.id || user.id === "temp-user-id" || user.id.length < 10) {
+      console.error(
+        "無効なユーザーID、オンボーディング完了をスキップ:",
+        user.id
+      );
+      return;
+    }
 
-      if (userError) {
-        console.error("ユーザー情報の更新に失敗:", userError);
-        return;
-      }
+    try {
+      console.log("Calling usersApi.completeOnboarding for user:", user.id);
+
+      // usersApi.completeOnboardingを使用して、onboarding_completed_dateも設定
+      const result = await usersApi.completeOnboarding(user.id, {
+        name: data.name,
+        age: data.age,
+        birth_date: data.birthDate,
+        target_age: data.targetAge,
+        target_amount: data.targetAmount,
+      });
+
+      console.log("usersApi.completeOnboarding result:", result);
 
       setIsOnboardingCompleted(true);
       setOnboardingData(data);
+
+      console.log(
+        "オンボーディング完了: onboarding_completed_dateが設定されました"
+      );
+
+      // オンボーディング完了後のコールバックを実行
+      if (onOnboardingCompletedCallback) {
+        console.log("Executing onboarding completion callback...");
+        onOnboardingCompletedCallback();
+      } else {
+        console.log("No onboarding completion callback set");
+      }
     } catch (error) {
       console.error("オンボーディング完了の保存に失敗:", error);
     }
@@ -159,6 +207,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
     onboardingData,
     completeOnboarding,
     resetOnboarding,
+    setOnOnboardingCompleted, // コールバック設定関数
   };
 
   return (

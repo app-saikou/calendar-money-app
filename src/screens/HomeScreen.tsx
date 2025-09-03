@@ -18,7 +18,7 @@ import {
 } from "../utils/calculations";
 import { OnboardingData } from "../types";
 import { usersApi } from "../lib/supabaseClient";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
 import { Tables } from "../lib/supabase";
 
 export const HomeScreen: React.FC = () => {

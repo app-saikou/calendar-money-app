@@ -17,7 +17,7 @@ import {
   budgetCategoriesApi,
   stockInvestmentsApi,
 } from "../lib/supabaseClient";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
 import { Tables } from "../lib/supabase";
 
 interface BudgetCategory {

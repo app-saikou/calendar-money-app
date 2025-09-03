@@ -172,29 +172,34 @@ export const applyTransactionsToAssets = (
 export const calculateAssetProjection = (
   assets: Asset[],
   budgets: MonthlyBudget[],
-  transactions: Transaction[]
+  transactions: Transaction[],
+  userOnboardingDate: string, // オンボーディング完了日
+  userBirthDate: string // ユーザーの生年月日を追加
 ): Record<string, CalendarDayData> => {
   const result: Record<string, CalendarDayData> = {};
   const today = new Date();
 
-  // ユーザーの年齢を取得して100歳までの期間を計算
-  let endDate = new Date(today.getFullYear() + 2, today.getMonth(), 0); // デフォルト2年後
+  // 生年月日から100年後の日付を計算
+  const birthDate = new Date(userBirthDate);
+  const endDate = new Date(
+    birthDate.getFullYear() + 100,
+    birthDate.getMonth(),
+    birthDate.getDate()
+  );
 
-  try {
-    // AsyncStorageからユーザーの年齢を取得（非同期処理のため、デフォルト値を使用）
-    const userAge = 25; // デフォルト年齢
-    const targetAge = 100;
-    const yearsToTarget = targetAge - userAge;
-    endDate = new Date(
-      today.getFullYear() + yearsToTarget,
-      today.getMonth(),
-      0
-    );
-  } catch (error) {
-    console.log("Using default end date (2 years from now)");
-  }
+  console.log(
+    `Calculating projection from ${userOnboardingDate} to ${
+      endDate.toISOString().split("T")[0]
+    }`
+  );
+  console.log(
+    `Birth date: ${userBirthDate}, 100 years later: ${
+      endDate.toISOString().split("T")[0]
+    }`
+  );
 
-  const startDate = new Date(today.getFullYear(), today.getMonth() - 6, 1); // 6か月前から
+  // 開始日: ユーザーのオンボーディング完了日
+  const startDate = new Date(userOnboardingDate);
   const currentDate = new Date(startDate);
 
   // 固定予算として最初の予算を使用（毎月同じ予算を適用）
