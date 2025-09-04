@@ -42,6 +42,16 @@ interface AssetContextType {
   getCashAmount: () => number;
   getStockAmount: () => number;
   refreshCalendarData: () => void;
+  testBatchUpsert: (
+    testDays?: number
+  ) => Promise<{ success: boolean; count?: number; error?: any }>; // バッチUPSERTテスト関数
+  saveCalendarDataToSupabaseOptimized: () => Promise<void>; // 最適化版の保存関数
+  saveCalendarDataAllAtOnce: () => Promise<{
+    success: boolean;
+    count?: number;
+    duration?: number;
+    error?: any;
+  }>; // 一括保存版の保存関数
   handleOnboardingCompleted: () => Promise<void>; // オンボーディング完了後のコールバック
 }
 
@@ -608,13 +618,59 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // 100歳までの資産推移データをSupabaseに保存
-  const saveCalendarDataToSupabase = async () => {
+  // 小規模テスト用のバッチUPSERT関数（安全確認用）
+  const testBatchUpsert = async (testDays: number = 10) => {
+    try {
+      if (!user) {
+        console.log("User not authenticated, skipping test");
+        return;
+      }
+
+      console.log(`=== バッチUPSERTテスト開始（${testDays}日分） ===`);
+
+      // テスト用の小さなデータセットを作成
+      const testData = [];
+      const today = new Date();
+
+      for (let i = 0; i < testDays; i++) {
+        const testDate = new Date(today);
+        testDate.setDate(today.getDate() + i);
+
+        testData.push({
+          user_id: user.id,
+          date: testDate.toISOString().split("T")[0],
+          cash_amount: (1000000 + i * 1000).toString(),
+          stock_amount: (2000000 + i * 2000).toString(),
+          total_amount: (3000000 + i * 3000).toString(),
+        });
+      }
+
+      console.log(`テストデータ準備完了: ${testData.length}件`);
+
+      // バッチUPSERTでテスト
+      await calendarCacheApi.batchUpsertCalendarCache(testData);
+
+      console.log(`=== バッチUPSERTテスト完了 ===`);
+      console.log(`結果: ${testData.length}件のテストデータを保存`);
+
+      return { success: true, count: testData.length };
+    } catch (error) {
+      console.error("バッチUPSERTテストエラー:", error);
+      return { success: false, error };
+    }
+  };
+
+  // 全データを一度にUPSERT（一括保存版）
+  const saveCalendarDataAllAtOnce = async () => {
     try {
       if (!user) {
         console.log("User not authenticated, skipping calendar data save");
         return;
       }
+
+      console.log("=== 資産推移データ一括保存開始 ===");
+      console.log(`認証ユーザーID: ${user.id}`);
+      console.log(`認証状態: ${user ? "認証済み" : "未認証"}`);
 
       // ユーザーのオンボーディング完了日を取得
       const userData = await usersApi.getUser(user.id);
@@ -626,6 +682,196 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
         );
         return;
       }
+
+      console.log(`オンボーディング完了日: ${onboardingDate}`);
+
+      // 最新の資産推移データを計算
+      const userBirthDate = (userData as any).birth_date || "1995-03-28";
+      console.log("User birth date for projection calculation:", userBirthDate);
+
+      const projectionData = calculateAssetProjection(
+        assets,
+        budgets,
+        transactions,
+        onboardingDate,
+        userBirthDate
+      );
+
+      console.log(
+        `計算完了: ${Object.keys(projectionData).length}日分のデータ`
+      );
+
+      // Supabaseに保存するデータを準備
+      const calendarCacheData = Object.entries(projectionData).map(
+        ([date, data]) => ({
+          user_id: user.id,
+          date: date,
+          cash_amount: data.cashAmount.toString(),
+          stock_amount: data.stockAmount.toString(),
+          total_amount: data.totalAssets.toString(),
+        })
+      );
+
+      console.log(`保存準備完了: ${calendarCacheData.length}日分のデータ`);
+      console.log(
+        `データサイズ: ${JSON.stringify(calendarCacheData).length} bytes`
+      );
+
+      // 全データを一度にUPSERT
+      const startTime = Date.now();
+
+      try {
+        await calendarCacheApi.upsertAllCalendarCache(calendarCacheData);
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+
+        console.log(`=== 資産推移データ一括保存完了 ===`);
+        console.log(
+          `処理時間: ${duration}ms (${(duration / 1000).toFixed(2)}秒)`
+        );
+        console.log(`保存件数: ${calendarCacheData.length}件`);
+        console.log(`結果: 成功`);
+
+        return { success: true, count: calendarCacheData.length, duration };
+      } catch (error) {
+        console.error(`一括保存エラー:`, error);
+        console.log(`フォールバック: バッチ処理に切り替え`);
+
+        // エラー時はバッチ処理にフォールバック
+        return await saveCalendarDataToSupabaseOptimized();
+      }
+    } catch (error) {
+      console.error(
+        "Error saving calendar data to Supabase (all at once):",
+        error
+      );
+      return { success: false, error };
+    }
+  };
+
+  // 100歳までの資産推移データをSupabaseに保存（バッチUPSERT版）
+  const saveCalendarDataToSupabaseOptimized = async () => {
+    try {
+      if (!user) {
+        console.log("User not authenticated, skipping calendar data save");
+        return;
+      }
+
+      console.log("=== 資産推移データ保存開始（最適化版） ===");
+      console.log(`認証ユーザーID: ${user.id}`);
+      console.log(`認証状態: ${user ? "認証済み" : "未認証"}`);
+
+      // ユーザーのオンボーディング完了日を取得
+      const userData = await usersApi.getUser(user.id);
+      const onboardingDate = (userData as any).onboarding_completed_date;
+
+      if (!onboardingDate) {
+        console.log(
+          "No onboarding completion date found, skipping calendar data save"
+        );
+        return;
+      }
+
+      console.log(`オンボーディング完了日: ${onboardingDate}`);
+
+      // 最新の資産推移データを計算
+      const userBirthDate = (userData as any).birth_date || "1995-03-28";
+      console.log("User birth date for projection calculation:", userBirthDate);
+
+      const projectionData = calculateAssetProjection(
+        assets,
+        budgets,
+        transactions,
+        onboardingDate,
+        userBirthDate
+      );
+
+      console.log(
+        `計算完了: ${Object.keys(projectionData).length}日分のデータ`
+      );
+
+      // Supabaseに保存するデータを準備
+      const calendarCacheData = Object.entries(projectionData).map(
+        ([date, data]) => ({
+          user_id: user.id,
+          date: date,
+          cash_amount: data.cashAmount.toString(),
+          stock_amount: data.stockAmount.toString(),
+          total_amount: data.totalAssets.toString(),
+        })
+      );
+
+      console.log(`保存準備完了: ${calendarCacheData.length}日分のデータ`);
+
+      // バッチUPSERTでSupabaseに保存
+      let savedCount = 0;
+      let errorCount = 0;
+      const BATCH_SIZE = 1000;
+      const totalBatches = Math.ceil(calendarCacheData.length / BATCH_SIZE);
+
+      console.log(`バッチUPSERT処理開始: ${totalBatches}バッチに分割`);
+
+      for (let i = 0; i < calendarCacheData.length; i += BATCH_SIZE) {
+        const batch = calendarCacheData.slice(i, i + BATCH_SIZE);
+        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+
+        console.log(
+          `バッチUPSERT ${batchNumber}/${totalBatches} 処理中... (${
+            i + 1
+          }-${Math.min(i + BATCH_SIZE, calendarCacheData.length)}日)`
+        );
+
+        try {
+          await calendarCacheApi.batchUpsertCalendarCache(batch);
+          savedCount += batch.length;
+          console.log(
+            `バッチUPSERT ${batchNumber} 完了: ${batch.length}件保存済み`
+          );
+        } catch (error) {
+          console.error(`バッチUPSERT ${batchNumber} エラー:`, error);
+          errorCount += batch.length;
+        }
+      }
+
+      console.log(`=== 資産推移データ保存完了（最適化版） ===`);
+      console.log(
+        `最終結果: ${savedCount}/${calendarCacheData.length}日分を保存, ${errorCount}件エラー`
+      );
+    } catch (error) {
+      console.error(
+        "Error saving calendar data to Supabase (optimized):",
+        error
+      );
+    }
+  };
+
+  // 100歳までの資産推移データをSupabaseに保存（従来版）
+  const saveCalendarDataToSupabase = async () => {
+    try {
+      if (!user) {
+        console.log("User not authenticated, skipping calendar data save");
+        return;
+      }
+
+      console.log("=== 資産推移データ保存開始 ===");
+      console.log(`認証ユーザーID: ${user.id}`);
+      console.log(`認証状態: ${user ? "認証済み" : "未認証"}`);
+      console.log(`ユーザーオブジェクト詳細:`, JSON.stringify(user, null, 2));
+
+      // ユーザーのオンボーディング完了日を取得
+      const userData = await usersApi.getUser(user.id);
+      console.log(`ユーザーデータ取得結果:`, JSON.stringify(userData, null, 2));
+
+      const onboardingDate = (userData as any).onboarding_completed_date;
+
+      if (!onboardingDate) {
+        console.log(
+          "No onboarding completion date found, skipping calendar data save"
+        );
+        return;
+      }
+
+      console.log(`オンボーディング完了日: ${onboardingDate}`);
 
       // 最新の資産推移データを計算
       const userBirthDate = (userData as any).birth_date || "1995-03-28"; // デフォルト生年月日
@@ -640,9 +886,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       console.log(
-        `Calculating projection data for ${
-          Object.keys(projectionData).length
-        } days`
+        `計算完了: ${Object.keys(projectionData).length}日分のデータ`
       );
 
       // Supabaseに保存するデータを準備
@@ -656,23 +900,74 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
         })
       );
 
+      console.log(`保存準備完了: ${calendarCacheData.length}日分のデータ`);
       console.log(
-        `Prepared ${calendarCacheData.length} days of calendar data for Supabase`
+        `最初のデータサンプル:`,
+        JSON.stringify(calendarCacheData[0], null, 2)
+      );
+      console.log(
+        `最後のデータサンプル:`,
+        JSON.stringify(calendarCacheData[calendarCacheData.length - 1], null, 2)
       );
 
       // バッチでSupabaseに保存
       let savedCount = 0;
-      for (const cacheData of calendarCacheData) {
-        try {
-          await calendarCacheApi.upsertCalendarCache(cacheData);
-          savedCount++;
-        } catch (error) {
-          console.error(`Error saving data for date ${cacheData.date}:`, error);
+      let errorCount = 0;
+      const BATCH_SIZE = 1000;
+      const totalBatches = Math.ceil(calendarCacheData.length / BATCH_SIZE);
+
+      console.log(`バッチ処理開始: ${totalBatches}バッチに分割`);
+
+      for (let i = 0; i < calendarCacheData.length; i += BATCH_SIZE) {
+        const batch = calendarCacheData.slice(i, i + BATCH_SIZE);
+        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+
+        console.log(
+          `バッチ ${batchNumber}/${totalBatches} 処理中... (${i + 1}-${Math.min(
+            i + BATCH_SIZE,
+            calendarCacheData.length
+          )}日)`
+        );
+
+        for (const cacheData of batch) {
+          try {
+            await calendarCacheApi.upsertCalendarCache(cacheData);
+            savedCount++;
+          } catch (error) {
+            console.error(
+              `Error saving data for date ${cacheData.date}:`,
+              error
+            );
+            console.error(
+              `失敗したデータ詳細:`,
+              JSON.stringify(cacheData, null, 2)
+            );
+            console.error(
+              `エラーオブジェクト詳細:`,
+              JSON.stringify(error, null, 2)
+            );
+            errorCount++;
+
+            // 最初のエラーで処理を停止して詳細調査
+            if (errorCount === 1) {
+              console.error(`=== 最初のエラー詳細調査 ===`);
+              console.error(`保存しようとしたデータ:`, cacheData);
+              console.error(`現在のユーザーID:`, user.id);
+              console.error(`データのuser_id:`, cacheData.user_id);
+              console.error(`ユーザーID一致:`, user.id === cacheData.user_id);
+              console.error(`=== エラー詳細調査完了 ===`);
+            }
+          }
         }
+
+        console.log(
+          `バッチ ${batchNumber} 完了: ${savedCount}件保存済み, ${errorCount}件エラー`
+        );
       }
 
+      console.log(`=== 資産推移データ保存完了 ===`);
       console.log(
-        `Successfully saved ${savedCount}/${calendarCacheData.length} days to Supabase`
+        `最終結果: ${savedCount}/${calendarCacheData.length}日分を保存, ${errorCount}件エラー`
       );
     } catch (error) {
       console.error("Error saving calendar data to Supabase:", error);
@@ -698,7 +993,17 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
       "AssetContext: Onboarding completed, refreshing calendar data..."
     );
     await refreshCalendarData();
-    await saveCalendarDataToSupabase();
+
+    // 一括保存を試行
+    console.log("一括保存を試行中...");
+    const result = await saveCalendarDataAllAtOnce();
+
+    if (result?.success) {
+      console.log(`一括保存成功: ${result.count}件 (${result.duration}ms)`);
+    } else {
+      console.log("一括保存失敗、従来のバッチ処理にフォールバック");
+      await saveCalendarDataToSupabase();
+    }
   };
 
   const value: AssetContextType = {
@@ -718,6 +1023,9 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
     getCashAmount,
     getStockAmount,
     refreshCalendarData,
+    testBatchUpsert, // バッチUPSERTテスト関数
+    saveCalendarDataToSupabaseOptimized, // 最適化版の保存関数
+    saveCalendarDataAllAtOnce, // 一括保存版の保存関数
     handleOnboardingCompleted, // オンボーディング完了後のコールバック
   };
 

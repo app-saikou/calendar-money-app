@@ -184,7 +184,7 @@ export const calculateAssetProjection = (
   const endDate = new Date(
     birthDate.getFullYear() + 100,
     birthDate.getMonth(),
-    birthDate.getDate()
+    birthDate.getDate() + 1 // 100年後の翌日まで計算
   );
 
   console.log(

@@ -308,4 +308,61 @@ export const calendarCacheApi = {
 
     if (error) throw error;
   },
+
+  // バッチでカレンダーキャッシュを追加/更新（新機能）
+  batchUpsertCalendarCache: async (
+    cacheDataArray: Inserts<"calendar_cache">[]
+  ) => {
+    console.log(
+      `[BATCH_UPSERT] 開始: ${cacheDataArray.length}件のデータを一括処理`
+    );
+
+    const { data, error } = await supabase
+      .from("calendar_cache")
+      .upsert(cacheDataArray, {
+        onConflict: "user_id,date",
+        ignoreDuplicates: false,
+      })
+      .select();
+
+    if (error) {
+      console.error(`[BATCH_UPSERT] エラー:`, error);
+      throw error;
+    }
+
+    console.log(`[BATCH_UPSERT] 完了: ${data?.length || 0}件処理`);
+    return { data, error: null };
+  },
+
+  // 全データを一度にUPSERT（一括保存）
+  upsertAllCalendarCache: async (
+    cacheDataArray: Inserts<"calendar_cache">[]
+  ) => {
+    console.log(
+      `[ALL_UPSERT] 開始: ${cacheDataArray.length}件のデータを一括保存`
+    );
+
+    const startTime = Date.now();
+
+    const { data, error } = await supabase
+      .from("calendar_cache")
+      .upsert(cacheDataArray, {
+        onConflict: "user_id,date",
+        ignoreDuplicates: false,
+      })
+      .select();
+
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+
+    if (error) {
+      console.error(`[ALL_UPSERT] エラー:`, error);
+      throw error;
+    }
+
+    console.log(
+      `[ALL_UPSERT] 完了: ${data?.length || 0}件処理 (${duration}ms)`
+    );
+    return { data, error: null, duration };
+  },
 };
