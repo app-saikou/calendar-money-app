@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -403,51 +403,53 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {/* ヘッダー */}
-        <View style={styles.header}>
-          <Text style={styles.title}>初期設定</Text>
-          <View style={styles.progressContainer}>
-            {[1, 2, 3, 4].map((step) => (
-              <View
-                key={step}
-                style={[
-                  styles.progressDot,
-                  currentStep >= step && styles.progressDotActive,
-                ]}
-              />
-            ))}
+    <>
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          {/* ヘッダー */}
+          <View style={styles.header}>
+            <Text style={styles.title}>初期設定</Text>
+            <View style={styles.progressContainer}>
+              {[1, 2, 3, 4].map((step) => (
+                <View
+                  key={step}
+                  style={[
+                    styles.progressDot,
+                    currentStep >= step && styles.progressDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={styles.stepIndicator}>ステップ {currentStep} / 4</Text>
           </View>
-          <Text style={styles.stepIndicator}>ステップ {currentStep} / 4</Text>
-        </View>
 
-        {/* ステップコンテンツ */}
-        <View style={styles.formContainer}>
-          {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
-          {currentStep === 4 && renderStep4()}
-        </View>
+          {/* ステップコンテンツ */}
+          <View style={styles.formContainer}>
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
+            {currentStep === 3 && renderStep3()}
+            {currentStep === 4 && renderStep4()}
+          </View>
 
-        {/* ナビゲーションボタン */}
-        <View style={styles.navigationContainer}>
-          {currentStep > 1 && (
-            <TouchableOpacity
-              style={styles.previousButton}
-              onPress={handlePrevious}
-            >
-              <Text style={styles.previousButtonText}>← 前へ</Text>
+          {/* ナビゲーションボタン */}
+          <View style={styles.navigationContainer}>
+            {currentStep > 1 && (
+              <TouchableOpacity
+                style={styles.previousButton}
+                onPress={handlePrevious}
+              >
+                <Text style={styles.previousButtonText}>← 前へ</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+              <Text style={styles.nextButtonText}>
+                {currentStep === 3 ? "完了 🎉" : "次へ →"}
+              </Text>
             </TouchableOpacity>
-          )}
-          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-            <Text style={styles.nextButtonText}>
-              {currentStep === 3 ? "完了 🎉" : "次へ →"}
-            </Text>
-          </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 };
 

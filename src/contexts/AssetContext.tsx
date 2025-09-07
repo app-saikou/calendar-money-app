@@ -22,6 +22,7 @@ interface AssetContextType {
   transactions: Transaction[];
   budgets: MonthlyBudget[];
   calendarData: Record<string, CalendarDayData>;
+  isCalculating: boolean; // 資産推移計算中の状態
 
   // Asset management
   addAsset: (asset: Omit<Asset, "id">) => void;
@@ -76,6 +77,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
     Record<string, CalendarDayData>
   >({});
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false); // 資産推移計算中の状態
 
   // 初期化処理
   useEffect(() => {
@@ -668,7 +670,9 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
+      setIsCalculating(true); // 計算開始
       console.log("=== 資産推移データ一括保存開始 ===");
+      console.log("isCalculating set to true");
       console.log(`認証ユーザーID: ${user.id}`);
       console.log(`認証状態: ${user ? "認証済み" : "未認証"}`);
 
@@ -746,6 +750,9 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
         error
       );
       return { success: false, error };
+    } finally {
+      setIsCalculating(false); // 計算完了
+      console.log("isCalculating set to false");
     }
   };
 
@@ -1011,6 +1018,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({
     transactions,
     budgets,
     calendarData,
+    isCalculating,
     addAsset,
     updateAsset,
     deleteAsset,

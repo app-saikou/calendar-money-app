@@ -13,6 +13,7 @@ import {
   useOnboarding,
 } from "./src/contexts/OnboardingContext";
 import { useAuth } from "./src/contexts/AuthContext";
+import { AssetCalculationLoading } from "./src/components/AssetCalculationLoading";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { AssetManagementScreen } from "./src/screens/AssetManagementScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
@@ -82,7 +83,7 @@ const MainApp: React.FC = () => {
     completeOnboarding,
     setOnOnboardingCompleted,
   } = useOnboarding();
-  const { handleOnboardingCompleted } = useAssets();
+  const { handleOnboardingCompleted, isCalculating } = useAssets();
 
   // オンボーディング完了後のコールバックを設定
   useEffect(() => {
@@ -112,85 +113,90 @@ const MainApp: React.FC = () => {
 
   // ログイン済みでオンボーディング完了の場合
   return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ focused, color, size }) => {
-            let iconName: keyof typeof Ionicons.glyphMap;
+    <>
+      <NavigationContainer>
+        <Tab.Navigator
+          screenOptions={({ route }) => ({
+            tabBarIcon: ({ focused, color, size }) => {
+              let iconName: keyof typeof Ionicons.glyphMap;
 
-            if (route.name === "Home") {
-              iconName = focused ? "home" : "home-outline";
-            } else if (route.name === "Assets") {
-              iconName = focused ? "wallet" : "wallet-outline";
-            } else if (route.name === "Transaction") {
-              iconName = focused ? "add-circle" : "add-circle-outline";
-            } else if (route.name === "Settings") {
-              iconName = focused ? "settings" : "settings-outline";
-            } else {
-              iconName = "help-circle-outline";
-            }
+              if (route.name === "Home") {
+                iconName = focused ? "home" : "home-outline";
+              } else if (route.name === "Assets") {
+                iconName = focused ? "wallet" : "wallet-outline";
+              } else if (route.name === "Transaction") {
+                iconName = focused ? "add-circle" : "add-circle-outline";
+              } else if (route.name === "Settings") {
+                iconName = focused ? "settings" : "settings-outline";
+              } else {
+                iconName = "help-circle-outline";
+              }
 
-            return <Ionicons name={iconName} size={size} color={color} />;
-          },
-          tabBarActiveTintColor: "#2196F3",
-          tabBarInactiveTintColor: "#8E8E93",
-          tabBarStyle: {
-            backgroundColor: "#fff",
-            borderTopWidth: 1,
-            borderTopColor: "#E5E5EA",
-            paddingBottom: 8,
-            paddingTop: 8,
-            height: 88,
-          },
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: "500",
-            marginTop: 4,
-          },
-          headerStyle: {
-            backgroundColor: "#2196F3",
-          },
-          headerTintColor: "#fff",
-          headerTitleStyle: {
-            fontWeight: "bold",
-          },
-        })}
-      >
-        <Tab.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{
-            title: "ホーム",
-            tabBarLabel: "ホーム",
-          }}
-        />
-        <Tab.Screen
-          name="Assets"
-          component={AssetManagementScreen}
-          options={{
-            title: "資産管理",
-            tabBarLabel: "資産",
-          }}
-        />
-        <Tab.Screen
-          name="Transaction"
-          component={TransactionScreen}
-          options={{
-            title: "収支登録",
-            tabBarLabel: "取引",
-          }}
-        />
-        <Tab.Screen
-          name="Settings"
-          component={SettingsStackScreen}
-          options={{
-            title: "設定",
-            tabBarLabel: "設定",
-            headerShown: false,
-          }}
-        />
-      </Tab.Navigator>
-    </NavigationContainer>
+              return <Ionicons name={iconName} size={size} color={color} />;
+            },
+            tabBarActiveTintColor: "#2196F3",
+            tabBarInactiveTintColor: "#8E8E93",
+            tabBarStyle: {
+              backgroundColor: "#fff",
+              borderTopWidth: 1,
+              borderTopColor: "#E5E5EA",
+              paddingBottom: 8,
+              paddingTop: 8,
+              height: 88,
+            },
+            tabBarLabelStyle: {
+              fontSize: 12,
+              fontWeight: "500",
+              marginTop: 4,
+            },
+            headerStyle: {
+              backgroundColor: "#2196F3",
+            },
+            headerTintColor: "#fff",
+            headerTitleStyle: {
+              fontWeight: "bold",
+            },
+          })}
+        >
+          <Tab.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{
+              title: "ホーム",
+              tabBarLabel: "ホーム",
+            }}
+          />
+          <Tab.Screen
+            name="Assets"
+            component={AssetManagementScreen}
+            options={{
+              title: "資産管理",
+              tabBarLabel: "資産",
+            }}
+          />
+          <Tab.Screen
+            name="Transaction"
+            component={TransactionScreen}
+            options={{
+              title: "収支登録",
+              tabBarLabel: "取引",
+            }}
+          />
+          <Tab.Screen
+            name="Settings"
+            component={SettingsStackScreen}
+            options={{
+              title: "設定",
+              tabBarLabel: "設定",
+              headerShown: false,
+            }}
+          />
+        </Tab.Navigator>
+      </NavigationContainer>
+
+      {/* 資産推移計算中のローディング */}
+      <AssetCalculationLoading visible={isCalculating} />
+    </>
   );
 };
 
